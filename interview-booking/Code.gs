@@ -2,13 +2,21 @@ const CALENDAR_ID = 'pekruse504@gmail.com';
 const ZONE = 'America/New_York';
 
 function doGet() {
-  const page = HtmlService.createTemplateFromFile('Booking');
-  page.clientId = PropertiesService.getScriptProperties().getProperty('GOOGLE_CLIENT_ID');
-  return page.evaluate().setTitle('Schedule an interview');
+  return ContentService.createTextOutput('Patrick Kruse interview scheduler. Book through the portfolio.');
+}
+
+function doPost(e) {
+  let message;
+  try {
+    message = reserve(e.parameter);
+  } catch (error) {
+    message = String(error.message || 'Booking failed.').replace(/[&<>"']/g, '');
+  }
+  return HtmlService.createHtmlOutput('<meta name="viewport" content="width=device-width,initial-scale=1"><main style="font:18px system-ui;max-width:36em;margin:10vh auto;padding:1em"><h1>Interview booking</h1><p>' + message + '</p><a target="_top" href="https://pekruse.github.io/patrick-kruse-portfolio/self-interview.html">Return to Ask Patrick</a></main>');
 }
 
 function reserve(input) {
-  const clientId = PropertiesService.getScriptProperties().getProperty('GOOGLE_CLIENT_ID');
+  const clientId = '970227434245-4cfu822ti8gc29jcjplmshpekqae4gfa.apps.googleusercontent.com';
   if (!clientId || typeof input.token !== 'string' || input.token.length > 8192) throw new Error('Google sign-in is required.');
   const response = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(input.token), {muteHttpExceptions:true});
   if (response.getResponseCode() !== 200) throw new Error('Sign in again.');
