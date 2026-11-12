@@ -19,3 +19,17 @@
     if (!preference) update(event.matches ? 'dark' : 'light');
   });
 })();
+
+if (document.querySelector('main #projects')) {
+  document.addEventListener('click', event => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const link = event.target.closest('a[href^="#"]');
+    const section = link && document.getElementById(link.hash.slice(1));
+    if (!section || link.target === '_blank') return;
+    event.preventDefault();
+    if (location.hash) history.replaceState(history.state, '', location.pathname + location.search);
+    if (!section.hasAttribute('tabindex')) section.tabIndex = -1;
+    section.focus({preventScroll: true});
+    section.scrollIntoView({block: 'start'});
+  });
+}
