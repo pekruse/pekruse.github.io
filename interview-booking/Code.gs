@@ -14,6 +14,7 @@ function doGet(e) {
   });
   const duration = 180*60000;
   let rows = '';
+  const openings = [];
   try {
     const calendar = Calendar.Freebusy.query({timeMin:new Date(days[0].start).toISOString(),timeMax:new Date(days[1].start+duration).toISOString(),items:[{id:CALENDAR_ID}]}).calendars[CALENDAR_ID];
     if (!calendar || calendar.errors || !Array.isArray(calendar.busy)) throw Error();
@@ -25,11 +26,13 @@ function doGet(e) {
         if (cursor<start) gaps.push([cursor,start]);
         cursor=Math.max(cursor,end);
       }
+      for (const [start,end] of gaps) openings.push({date:day.date,start:840+start,end:840+end});
       const clock=m=>Math.floor((840+m)/60-12)+':'+String(m%60).padStart(2,'0');
       const label=Utilities.formatDate(new Date(day.start),ZONE,'EEE, MMM d');
       rows+='<section><b>'+label+'</b><div class="track">'+gaps.map(([a,b])=>'<i style="left:'+a/1.8+'%;width:'+(b-a)/1.8+'%"></i>').join('')+'</div><small>'+ (gaps.length?gaps.map(([a,b])=>clock(a)+'–'+clock(b)+' PM').join(' · '):'No availability')+'</small></section>';
     }
-  } catch(err) { rows='<p>Calendar availability could not be loaded. Refresh to retry.</p>'; }
+  } catch(err) { openings.length=0; rows='<p>Calendar availability could not be loaded. Refresh to retry.</p>'; }
+  if (e && e.parameter.view === 'windows') return ContentService.createTextOutput(JSON.stringify({openings})).setMimeType(ContentService.MimeType.JSON);
   return HtmlService.createHtmlOutput('<meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{color-scheme:light dark}body{font:16px system-ui;margin:8px}section{margin:.7em 0}.track{position:relative;height:14px;border-radius:4px;overflow:hidden;background:repeating-linear-gradient(135deg,#8885 0 3px,transparent 3px 6px);border:1px solid #8887;margin:4px 0}.track i{position:absolute;inset-block:0;background:#16846e}small{font-size:.85em}</style>'+rows).setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
