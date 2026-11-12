@@ -37,3 +37,8 @@
 .credentials ul{display:flex;flex-wrap:wrap;gap:8px 24px;list-style:none;padding:0;margin:10px 0 0;font-size:14px}
 .project{position:relative}.project .view-link::after{content:"";position:absolute;inset:0}.project:focus-within{outline:2px solid var(--accent)}
 .case-body{max-width:760px;margin:auto}.case-body h2{margin-top:1.5em}.case-body .specs{margin:24px 0}
+
+.credentials ul{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,165px),1fr));gap:20px}
+.credentials li,.credential-link{display:flex;flex-direction:column;align-items:flex-start;gap:10px}
+.credential-link{height:100%}
+.credential-icon{width:64px;height:48px;margin-top:auto;color:var(--accent)}
