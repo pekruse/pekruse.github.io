@@ -44,3 +44,8 @@ if (portraitDialog) {
   });
   portraitDialog.addEventListener('close', () => trigger.focus({preventScroll: true}));
 }
+
+for (const portrait of document.querySelectorAll('#portrait-open, #portrait-dialog img')) {
+  portrait.addEventListener('contextmenu', event => event.preventDefault());
+  portrait.addEventListener('dragstart', event => event.preventDefault());
+}
