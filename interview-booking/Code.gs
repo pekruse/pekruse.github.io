@@ -36,11 +36,18 @@ function doGet(e) {
 function doPost(e) {
   let message;
   try {
-    message = reserve(e.parameter);
+    const receipt = reserve(e.parameter);
+    const esc = value => String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    const row = (label,value) => '<dt style="margin-top:1em"><strong>'+label+'</strong></dt><dd style="margin:0">'+esc(value)+'</dd>';
+    message = '<h2>Booking confirmed</h2><dl>'+row('Date',receipt.date)+row('Time',receipt.time)+row('Booked by',receipt.email)+row('Format',receipt.format);
+    if (receipt.address) message += row('Meeting address',receipt.address);
+    message += '</dl>';
+    if (/^https:\/\/meet\.google\.com\//.test(receipt.meet)) message += '<p><a target="_blank" rel="noopener" href="'+esc(receipt.meet)+'">Join Google Meet</a></p>';
+    else if (receipt.format==='Google Meet') message += '<p>Your calendar invitation will contain the Google Meet details.</p>';
   } catch (error) {
     message = String(error.message || 'Booking failed.').replace(/[&<>"']/g, '');
   }
-  return HtmlService.createHtmlOutput('<meta name="viewport" content="width=device-width,initial-scale=1"><main style="font:18px system-ui;max-width:36em;margin:10vh auto;padding:1em"><h1>Interview booking</h1><p>' + message + '</p><a target="_top" href="https://pekruse.github.io/patrick-kruse-portfolio/self-interview.html">Return</a></main>');
+  return HtmlService.createHtmlOutput('<meta name="viewport" content="width=device-width,initial-scale=1"><main style="font:18px system-ui;max-width:36em;margin:10vh auto;padding:1em"><h1>Interview booking</h1>' + message + '<a target="_top" href="https://pekruse.github.io/patrick-kruse-portfolio/self-interview.html">Return</a></main>');
 }
 
 function reserve(input) {
@@ -87,6 +94,6 @@ function reserve(input) {
     } catch(error) {
       console.error('Organizer notification failed for '+booked.id+': '+error.message);
     }
-    return 'Booked. Check your calendar invitation.';
+    return {date:Utilities.formatDate(from,ZONE,'EEEE, MMMM d, yyyy'),time:Utilities.formatDate(from,ZONE,'h:mm a')+' – '+Utilities.formatDate(to,ZONE,'h:mm a z')+' ('+(end-start)+' minutes)',email,format:input.format,address:physical?address:'',meet:booked.hangoutLink||''};
   } finally { lock.releaseLock(); }
 }
