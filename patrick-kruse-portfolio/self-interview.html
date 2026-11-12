@@ -13,7 +13,12 @@
 <main><section class="sheet" aria-label="Interview questions"><div class="questions" role="group" aria-label="Choose a question"><button type="button" aria-pressed="true" aria-controls="answer">What’s a time a circuit surprised you?</button><button type="button" aria-pressed="false" aria-controls="answer">Why AI and hardware?</button><button type="button" aria-pressed="false" aria-controls="answer">What kind of internship are you looking for?</button></div><div id="answer" class="answer"><div class="recording">Video answer coming soon</div><div aria-live="polite"><h2 id="question">What’s a time a circuit surprised you?</h2><p id="response">An amplifier I was testing looked clean on the oscilloscope until I connected a speaker. Seeing the waveform clip made me look more closely at the load and how much current the output stage could deliver.</p></div></div></section><section class="sheet" id="schedule" aria-labelledby="schedule-title">
 <h2 id="schedule-title">Schedule an interview</h2>
 <p>Choose your start and end times on a Tuesday or Thursday, 2–5 PM Eastern. Interviews can last up to three hours. Please book at least 24 hours ahead.</p>
-<form id="interview-form" method="post" action="https://script.google.com/macros/s/AKfycbz5shY3XnlqJUq6S_KBTZcaIWxHs51qykSAhlJXLOdwGDTAczZ9BFiL-xuPhdJSWF9VtA/exec">
+<div id="availability"><h3>Calendar availability</h3><p>Green shows available time between 2 and 5 PM Eastern. Enter any start and end minute within an available range below.</p><button type="button" id="week-prev" disabled>Previous week</button> <button type="button" id="week-next">Next week</button><iframe title="Live Tuesday and Thursday availability" style="width:100%;height:180px;border:0" src="https://script.google.com/macros/s/AKfycbz5shY3XnlqJUq6S_KBTZcaIWxHs51qykSAhlJXLOdwGDTAczZ9BFiL-xuPhdJSWF9VtA/exec?week=0"></iframe></div>
+<script>
+(()=>{let week=0;const box=document.getElementById('availability'),frame=box.querySelector('iframe'),prev=box.querySelector('#week-prev'),next=box.querySelector('#week-next');
+function move(delta){week+=delta;frame.src='https://script.google.com/macros/s/AKfycbz5shY3XnlqJUq6S_KBTZcaIWxHs51qykSAhlJXLOdwGDTAczZ9BFiL-xuPhdJSWF9VtA/exec?week='+week;prev.disabled=week===0;next.disabled=week===12}
+prev.onclick=()=>move(-1);next.onclick=()=>move(1)})();
+</script><form id="interview-form" method="post" action="https://script.google.com/macros/s/AKfycbz5shY3XnlqJUq6S_KBTZcaIWxHs51qykSAhlJXLOdwGDTAczZ9BFiL-xuPhdJSWF9VtA/exec">
 <label>Date<input type="date" name="date" required></label>
 <label>Start time (Eastern)<input type="time" name="start" min="14:00" max="16:59" required></label>
 <label>End time (Eastern)<input type="time" name="end" min="14:01" max="17:00" required></label>
@@ -25,7 +30,7 @@
 <span id="booking-status" role="status">Sign in with Google to reserve your time.</span>
 <button type="submit" disabled>Reserve interview</button>
 </form>
-<details><summary>View availability and 30-minute booking options</summary><iframe title="Available interview times with Patrick Kruse" src="https://calendar.google.com/calendar/appointments/schedules/AcZssZ1eqcIeMSMotnWxZw5xT2M8Jeq2kqY7KNP7tu9286y8fbxQv7gNA-0cEDh9KIqIbBj6KLBrLqRM?gv=true" loading="lazy" width="100%" height="600" style="border:0;background:white"></iframe><a class="text-link" href="https://calendar.app.google/wWi9nygtvw5Uvx74A" target="_blank" rel="noopener noreferrer">Open booking page in Google Calendar ↗</a></details>
+
 <style>#interview-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,14rem),1fr));gap:1rem;margin-block:1.5rem}#interview-form label{display:grid;gap:.4rem}#interview-form [hidden]{display:none}#interview-form :is(input,select,button){font:inherit;padding:.6rem;border:1px solid var(--line);border-radius:5px;background:var(--surface);color:inherit}#interview-form button:enabled{cursor:pointer}#interview-form button:disabled{opacity:.55}#booking-status{align-self:center}</style>
 <script>
 const interviewForm=document.getElementById('interview-form');
