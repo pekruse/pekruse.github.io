@@ -31,3 +31,9 @@
 /* Resume download placeholder */
 .resume-button{display:inline-block;margin-top:4px;padding:13px 24px;border:0;border-radius:4px;background:var(--accent);color:var(--accent-text);font:500 16px/1.4 "IBM Plex Sans",Arial,sans-serif;text-align:center;white-space:nowrap}
 .resume-button:disabled{opacity:1;cursor:default}
+
+.credentials{grid-column:1/-1;border-top:1px solid var(--line);padding:20px}
+.credentials h2{margin:0;color:var(--muted)}
+.credentials ul{display:flex;flex-wrap:wrap;gap:8px 24px;list-style:none;padding:0;margin:10px 0 0;font-size:14px}
+.project{position:relative}.project .view-link::after{content:"";position:absolute;inset:0}.project:focus-within{outline:2px solid var(--accent)}
+.case-body{max-width:760px;margin:auto}.case-body h2{margin-top:1.5em}.case-body .specs{margin:24px 0}
