@@ -33,3 +33,14 @@ if (document.querySelector('main #projects')) {
     section.scrollIntoView({block: 'start'});
   });
 }
+
+const portraitDialog = document.getElementById('portrait-dialog');
+if (portraitDialog) {
+  const trigger = document.getElementById('portrait-open');
+  trigger.addEventListener('click', () => portraitDialog.showModal());
+  portraitDialog.querySelector('button').addEventListener('click', () => portraitDialog.close());
+  portraitDialog.addEventListener('click', event => {
+    if (event.target === portraitDialog) portraitDialog.close();
+  });
+  portraitDialog.addEventListener('close', () => trigger.focus({preventScroll: true}));
+}
