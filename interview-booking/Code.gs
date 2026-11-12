@@ -40,7 +40,7 @@ function doPost(e) {
   } catch (error) {
     message = String(error.message || 'Booking failed.').replace(/[&<>"']/g, '');
   }
-  return HtmlService.createHtmlOutput('<meta name="viewport" content="width=device-width,initial-scale=1"><main style="font:18px system-ui;max-width:36em;margin:10vh auto;padding:1em"><h1>Interview booking</h1><p>' + message + '</p><a target="_top" href="https://pekruse.github.io/patrick-kruse-portfolio/self-interview.html">Return to Ask Patrick</a></main>');
+  return HtmlService.createHtmlOutput('<meta name="viewport" content="width=device-width,initial-scale=1"><main style="font:18px system-ui;max-width:36em;margin:10vh auto;padding:1em"><h1>Interview booking</h1><p>' + message + '</p><a target="_top" href="https://pekruse.github.io/patrick-kruse-portfolio/self-interview.html">Return</a></main>');
 }
 
 function reserve(input) {
