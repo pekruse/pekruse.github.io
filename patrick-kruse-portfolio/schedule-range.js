@@ -56,17 +56,71 @@
     if(n!==week){loadWeek(n);return}
     const first=gaps(date)[0]; fields.start.value=format(first?.start??840);fields.end.value=format(first?Math.min(first.start+30,first.end):870);render();
   }
-  async function loadWeek(n){
-    week=n;const id=++request; openings=null;error=false;
-    get('prev-week').disabled=n===0;get('next-week').disabled=n===12;
-    get('week-status').textContent='Loading week…';render();
-    try{
+  const cache=new Map();
+  function getWindows(n){
+    const entry=cache.get(n);
+    if(entry && Date.now()-entry.time<60000)return entry.promise;
+    const promise=(async()=>{
       const response=await fetch(form.action+'?view=windows&week='+n,{cache:'no-store'});
       if(!response.ok)throw Error();
       const body=(await response.text()).trim();
       const json=body.replace(/^window\.showInterviewWindows\(/,'').replace(/\);$/,'');
       const data=JSON.parse(json);
       if(!Array.isArray(data.openings)||data.error)throw Error();
+      return data;
+    })().catch(err=>{cache.delete(n);throw err});
+    cache.set(n,{promise,time:Date.now()});return promise;
+  }
+  const panel=get('month-panel'), toggle=get('month-toggle'), grid=get('month-grid');
+  let month, generation=0;
+  const shiftMonth=(ym,delta)=>{const d=new Date(ym+'-01T12:00:00Z');d.setUTCMonth(d.getUTCMonth()+delta);return iso(+d).slice(0,7)};
+  function closeMonth(){panel.hidden=true;toggle.setAttribute('aria-expanded','false');generation++}
+  async function drawMonth(){
+    const version=++generation, first=stamp(month+'-01'), next=stamp(shiftMonth(month,1)+'-01');
+    get('month-name').textContent=new Date(first).toLocaleDateString('en-US',{month:'long',year:'numeric',timeZone:'UTC'});
+    get('month-prev').disabled=month<=jump.min.slice(0,7);get('month-next').disabled=month>=jump.max.slice(0,7);
+    grid.replaceChildren();
+    for(const name of ['Mo','Tu','We','Th','Fr','Sa','Su']){const el=document.createElement('small');el.textContent=name;grid.append(el)}
+    const groups=new Map();
+    for(let t=first;t<next;t+=day){
+      const date=iso(t), button=document.createElement('button');button.type='button';button.textContent=Number(date.slice(-2));button.setAttribute('aria-label',date);
+      if(t===first)button.style.gridColumnStart=1+(new Date(t).getUTCDay()+6)%7;
+      button.disabled=date<jump.min||date>jump.max;button.setAttribute('aria-pressed',String(date===fields.date.value));
+      button.onclick=()=>{closeMonth();choose(date);toggle.focus()};grid.append(button);
+      if(!button.disabled){const w=Math.floor((t-monday)/(7*day));if(!groups.has(w))groups.set(w,[]);groups.get(w).push([date,button])}
+    }
+    get('month-key').textContent='Checking openings…';
+    let failed=false;
+    await Promise.all([...groups].map(async ([w,days])=>{
+      try{const data=await getWindows(w);if(version!==generation)return;
+        for(const [date,btn] of days){const free=data.openings.some(o=>o.date===date);btn.classList.toggle('has-opening',free);btn.setAttribute('aria-label',date+(free?', openings available':', unavailable'))}
+      }catch{failed=true}
+    }));
+    if(version===generation)get('month-key').textContent=failed?'Some dates could not be checked. Reopen to retry.':'Green dot · openings available';
+  }
+  toggle.onclick=()=>{if(!panel.hidden){closeMonth();return}month=fields.date.value.slice(0,7)||today.slice(0,7);panel.hidden=false;toggle.setAttribute('aria-expanded','true');drawMonth()};
+  for(const [name,step] of [['month-prev',-1],['month-next',1]])get(name).onclick=()=>{month=shiftMonth(month,step);drawMonth()};
+  document.addEventListener('click',e=>{if(!panel.hidden&&!toggle.parentElement.contains(e.target))closeMonth()});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!panel.hidden){closeMonth();toggle.focus()}});
+  get('next-opening').onclick=async()=>{
+    closeMonth();const button=get('next-opening'), status=get('opening-status');button.disabled=true;status.textContent='Finding next opening…';
+    try{
+      const from=fields.date.value||today, after=minutes(fields.start.value);
+      for(let w=Math.max(0,Math.floor((stamp(from)-monday)/(7*day)));w<=12;w++){
+        const data=await getWindows(w);
+        const match=data.openings.find(o=>o.date>from||(o.date===from&&(!Number.isFinite(after)||o.start>after||!gaps(from).some(g=>g.start<=after&&after<g.end)&&o.start===after)));
+        if(match){fields.date.value=jump.value=match.date;if(week!==w||!openings)await loadWeek(w);else choose(match.date);
+          fields.start.value=format(match.start);fields.end.value=format(Math.min(match.end,match.start+30));selection();status.textContent='Selected '+match.date+' at '+clock(match.start)+'.';return}
+      }
+      status.textContent='No later openings in the booking window.';
+    }catch{status.textContent='Could not check the calendar. Try again.'}finally{button.disabled=false}
+  };
+  async function loadWeek(n){
+    week=n;const id=++request; openings=null;error=false;
+    get('prev-week').disabled=n===0;get('next-week').disabled=n===12;
+    get('week-status').textContent='Loading week…';render();
+    try{
+      const data=await getWindows(n);
       if(id!==request)return;
       openings=data.openings;get('week-status').textContent='Week of '+iso(monday+n*7*day)+' · Eastern time';
       choose(fields.date.value);
