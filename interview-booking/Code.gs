@@ -91,11 +91,21 @@ function reserve(input) {
     if (physical) event.location = address;
     else event.conferenceData = {createRequest:{requestId:Utilities.getUuid(),conferenceSolutionKey:{type:'hangoutsMeet'}}};
     const booked = Calendar.Events.insert(event,CALENDAR_ID,{sendUpdates:'all',conferenceDataVersion:1});
-    try {
-      MailApp.sendEmail(CALENDAR_ID,'Interview booked: '+input.date+' at '+input.start+' Eastern',
-        [email+' booked an interview.',input.date+' · '+input.start+'–'+input.end+' Eastern',physical?'In person: '+address:'Google Meet',booked.htmlLink].join('\n'));
-    } catch(error) {
-      console.error('Organizer notification failed for '+booked.id+': '+error.message);
+    const subject = 'Interview confirmed: '+input.date+' at '+input.start+' Eastern';
+    const details = [
+      'Interview with Patrick Kruse',
+      'Booked by: '+email,
+      Utilities.formatDate(from,ZONE,'EEEE, MMMM d, yyyy'),
+      Utilities.formatDate(from,ZONE,'h:mm a')+' – '+Utilities.formatDate(to,ZONE,'h:mm a z')+' ('+(end-start)+' minutes)',
+      physical ? 'In person: '+address : 'Google Meet: '+(booked.hangoutLink || 'See the Calendar invitation for joining details.'),
+      booked.htmlLink
+    ].join('\n');
+    for (const recipient of new Set([CALENDAR_ID.toLowerCase(),email.toLowerCase()])) {
+      try {
+        MailApp.sendEmail(recipient,subject,details);
+      } catch (error) {
+        console.error('Confirmation email failed for event '+booked.id+' ('+(recipient===CALENDAR_ID.toLowerCase()?'organizer':'guest')+'): '+error.message);
+      }
     }
     return {date:Utilities.formatDate(from,ZONE,'EEEE, MMMM d, yyyy'),time:Utilities.formatDate(from,ZONE,'h:mm a')+' – '+Utilities.formatDate(to,ZONE,'h:mm a z')+' ('+(end-start)+' minutes)',email,format:input.format,address:physical?address:'',meet:booked.hangoutLink||''};
   } finally { lock.releaseLock(); }
