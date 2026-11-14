@@ -12,14 +12,9 @@
 <body><header><div class="nav-row"><div style="display:flex;align-items:center;gap:12px"><a href="./" class="brand" aria-label="Patrick Kruse home" style="border:0"><svg viewBox="0 0 64 64" width="39" height="39" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="13" y="13" width="38" height="38" rx="6"/><path d="M23 13V8l-4-4m14 9V3m9 10V8l5-5M13 23H7l-4-4m10 14H3m10 9H8l-5 5m48-24h6l4-4m-10 14h10m-10 9h5l5 5M23 51v6l-4 4m14-10v10m9-10v5l5 5"/></g><path fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="square" stroke-linejoin="round" d="M21 39V25h6a4 4 0 0 1 0 8h-6m15-8v14m1-7 7-7m-7 7 7 7"/></svg></a><a href="./" class="quiet-link" aria-label="Back to portfolio" style="padding:5px 12px;border:1px solid var(--line);border-radius:4px">← Back</a></div><div style="display:flex;align-items:center;flex-wrap:wrap;gap:1rem"><a class="quiet-link" href="./#contact">Contact ↗</a><a class="quiet-link" href="#schedule">Schedule an Interview</a></div><fieldset class="theme"><legend class="sr-only">Color theme</legend><button data-theme-choice="light" aria-pressed="false">☀ Light</button><button data-theme-choice="dark" aria-pressed="false">☾ Dark</button></fieldset></div><div class="name-block"><div><p class="eyebrow">Patrick Kruse</p><h1>Ask Patrick</h1></div></div></header>
 <main><section class="sheet" aria-label="Interview questions"><div class="questions" role="group" aria-label="Choose a question"><button type="button" aria-pressed="true" aria-controls="answer">What’s a time a circuit surprised you?</button><button type="button" aria-pressed="false" aria-controls="answer">Why AI and hardware?</button><button type="button" aria-pressed="false" aria-controls="answer">What kind of internship are you looking for?</button></div><div id="answer" class="answer"><div class="recording">Video answer coming soon</div><div aria-live="polite"><h2 id="question">What’s a time a circuit surprised you?</h2><p id="response">An amplifier I was testing looked clean on the oscilloscope until I connected a speaker. Seeing the waveform clip made me look more closely at the load and how much current the output stage could deliver.</p></div></div></section><section class="sheet" id="schedule" aria-labelledby="schedule-title">
 <h2 id="schedule-title">Schedule an interview</h2>
-<p>Choose your start and end times on a Tuesday or Thursday, 2–5 PM Eastern. Interviews can last up to three hours. Please book at least 24 hours ahead.</p>
-<div id="availability"><h3>Calendar availability</h3><p>Green shows available time between 2 and 5 PM Eastern. Use the sliders to choose a start and end minute, or enter the times below.</p><button type="button" id="week-prev" disabled>Previous week</button> <button type="button" id="week-next">Next week</button><iframe title="Live Tuesday and Thursday availability" style="width:100%;height:180px;border:0" src="https://script.google.com/macros/s/AKfycbz5shY3XnlqJUq6S_KBTZcaIWxHs51qykSAhlJXLOdwGDTAczZ9BFiL-xuPhdJSWF9VtA/exec?week=0"></iframe></div>
-<script>
-(()=>{let week=0;const box=document.getElementById('availability'),frame=box.querySelector('iframe'),prev=box.querySelector('#week-prev'),next=box.querySelector('#week-next');
-function move(delta){week+=delta;frame.src='https://script.google.com/macros/s/AKfycbz5shY3XnlqJUq6S_KBTZcaIWxHs51qykSAhlJXLOdwGDTAczZ9BFiL-xuPhdJSWF9VtA/exec?week='+week;prev.disabled=week===0;next.disabled=week===12}
-box.dataset.week=0;const updateWeek=delta=>{move(delta);box.dataset.week=week;box.dispatchEvent(new Event("weekchange"))};prev.onclick=()=>updateWeek(-1);next.onclick=()=>updateWeek(1)})();
-</script><form id="interview-form" method="post" action="https://script.google.com/macros/s/AKfycbz5shY3XnlqJUq6S_KBTZcaIWxHs51qykSAhlJXLOdwGDTAczZ9BFiL-xuPhdJSWF9VtA/exec">
-<fieldset id="picker" hidden style="grid-column:1/-1;border:1px solid var(--line);padding:1rem"><legend>Choose a time range</legend><label>Start <output id="slide-start-label"></output><input id="slide-start" type="range" step="1"></label><label>End <output id="slide-end-label"></output><input id="slide-end" type="range" step="1"></label></fieldset>
+<div id="availability"><h3>Availability calendar</h3><div class="week-tools"><button id="prev-week" type="button">← Previous week</button><label>Jump to date <input type="date" id="jump-date"></label><button id="next-week" type="button">Next week →</button></div><p id="week-status" role="status"></p><div id="week-days"></div></div>
+<form id="interview-form" method="post" action="https://script.google.com/macros/s/AKfycbz5shY3XnlqJUq6S_KBTZcaIWxHs51qykSAhlJXLOdwGDTAczZ9BFiL-xuPhdJSWF9VtA/exec">
+<fieldset id="picker"><legend>Interview time · Eastern</legend><output id="selection"></output><div class="range-box"><div id="range-track"></div><input type="range" min="840" max="1020" step="1" id="range-start" aria-label="Interview start"><input type="range" min="840" max="1020" step="1" id="range-end" aria-label="Interview end"></div><div class="ticks"><span>2 PM</span><span>3 PM</span><span>4 PM</span><span>5 PM</span></div><small id="range-note" role="status"></small></fieldset>
 <label>Date<input type="date" name="date" required></label>
 <label>Start time (Eastern)<input type="time" name="start" min="14:00" max="16:59" required></label>
 <label>End time (Eastern)<input type="time" name="end" min="14:01" max="17:00" required></label>
@@ -38,7 +33,7 @@ const interviewForm=document.getElementById('interview-form');
 const bookingFields=interviewForm.elements;
 function interviewSignedIn(result){
   bookingFields.token.value=result.credential;
-  interviewForm.querySelector('button').disabled=false;
+  interviewForm.dispatchEvent(new Event('signin'));
   document.getElementById('booking-status').textContent='Signed in. The calendar will check your selected time when you reserve.';
 }
 function syncBookingFields(){
@@ -53,16 +48,7 @@ function syncBookingFields(){
 interviewForm.addEventListener('input',syncBookingFields);
 interviewForm.addEventListener('submit',e=>{syncBookingFields();if(!interviewForm.reportValidity()||!bookingFields.token.value)e.preventDefault()});
 syncBookingFields();
-(()=>{
- const by=id=>document.getElementById(id),start=by('slide-start'),end=by('slide-end');
- const time=n=>String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0');
- const label=n=>(Math.floor(n/60)%12||12)+':'+String(n%60).padStart(2,'0')+' PM';
- const minutes=s=>{const [h,m]=s.split(':').map(Number);return h*60+m};
- function refresh(){const a=minutes(bookingFields.start.value),b=minutes(bookingFields.end.value);if(Number.isFinite(a))start.value=a;if(Number.isFinite(b))end.value=b;by('slide-start-label').value=Number.isFinite(a)?label(a):'Choose start';by('slide-end-label').value=Number.isFinite(b)?label(b):'Choose end'}
- function selectRange(e){let a=+start.value,b=+end.value;if(b<=a){if(e.target===start)b=a+1;else a=b-1}bookingFields.start.value=time(a);bookingFields.end.value=time(b);refresh();syncBookingFields()}
- start.min=840;start.max=1019;end.min=841;end.max=1020;start.value=840;end.value=1020;start.oninput=end.oninput=selectRange;bookingFields.start.addEventListener('input',refresh);bookingFields.end.addEventListener('input',refresh);refresh();by('picker').hidden=false;
-})();
-</script><script async defer src="https://accounts.google.com/gsi/client"></script></section></main>
+</script><link rel="stylesheet" href="schedule-range.css"><script src="schedule-range.js"></script><script async defer src="https://accounts.google.com/gsi/client"></script></section></main>
 <script>
 const responses = ["An amplifier I was testing looked clean on the oscilloscope until I connected a speaker. Seeing the waveform clip made me look more closely at the load and how much current the output stage could deliver.","I’m interested in how physical limits shape what AI can do. With a sensor running on a small battery, which measurements are worth spending energy on? That kind of question draws me to embedded systems.","I’d like to work on embedded hardware or electronics testing. I can contribute at the bench by assembling circuits, taking scope measurements, and documenting what happens when a design meets a real load."];
 const questions = document.querySelectorAll('.questions button');
