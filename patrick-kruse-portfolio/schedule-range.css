@@ -12,3 +12,5 @@
 @media (hover:hover){#schedule button:enabled:hover{background:var(--surface-2);outline:none}}
 #schedule button:enabled:active,#schedule button:focus-visible{background:var(--surface-2)}
 #schedule button:enabled:focus-visible{outline:2px solid currentColor;outline-offset:3px}
+
+#availability .week-tools { margin-block-start: 0.625rem; }
