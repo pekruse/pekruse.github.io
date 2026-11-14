@@ -24,7 +24,7 @@
 <div id="g_id_onload" data-client_id="970227434245-4cfu822ti8gc29jcjplmshpekqae4gfa.apps.googleusercontent.com" data-callback="interviewSignedIn" data-auto_prompt="false"></div>
 <div class="g_id_signin" data-type="standard"></div>
 <span id="booking-status" role="status">Sign in with Google to reserve your time.</span>
-<button type="submit" disabled>Reserve interview</button>
+<button type="submit" disabled>Review meeting details</button>
 </form>
 
 <style>#interview-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,14rem),1fr));gap:1rem;margin-block:1.5rem}#interview-form label{display:grid;gap:.4rem}#interview-form [hidden]{display:none}#interview-form :is(input,select,button){font:inherit;padding:.6rem;border:1px solid var(--line);border-radius:5px;background:var(--surface);color:inherit}#interview-form button:enabled{cursor:pointer}#interview-form button:disabled{opacity:.55}#booking-status{align-self:center}</style>
@@ -48,7 +48,41 @@ function syncBookingFields(){
 interviewForm.addEventListener('input',syncBookingFields);
 interviewForm.addEventListener('submit',e=>{syncBookingFields();if(!interviewForm.reportValidity()||!bookingFields.token.value)e.preventDefault()});
 syncBookingFields();
-</script><link rel="stylesheet" href="schedule-range.css"><script src="schedule-range.js"></script><script async defer src="https://accounts.google.com/gsi/client"></script></section></main>
+</script><link rel="stylesheet" href="schedule-range.css"><script src="schedule-range.js"></script><dialog id="meeting-review" aria-labelledby="review-heading" style="max-width:min(27rem,90vw);border:1px solid var(--line);border-radius:.65rem;padding:1.5rem;background:var(--surface);color:inherit"><h3 id="review-heading">Confirm meeting details</h3><dl></dl><button type="button" id="edit-meeting" autofocus>Edit details</button> <button type="button" id="confirm-meeting">Confirm and schedule</button></dialog>
+<script>
+(() => {
+  const review = document.getElementById('meeting-review');
+  const submit = interviewForm.querySelector('[type=submit]');
+  let approved = false;
+  interviewForm.addEventListener('submit', event => {
+    if (event.defaultPrevented) return;
+    if (approved) { approved = false; submit.disabled = true; return; }
+    event.preventDefault();
+    const {date,start,end,format,address} = bookingFields;
+    const showTime = value => new Date('2000-01-01T'+value+'Z').toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',timeZone:'UTC'});
+    const details = [
+      ['Date',new Date(date.value+'T12:00:00Z').toLocaleDateString('en-US',{dateStyle:'full',timeZone:'UTC'})],
+      ['Time',showTime(start.value)+' – '+showTime(end.value)+' Eastern'],
+      ['Duration',(end.valueAsNumber-start.valueAsNumber)/60000+' minutes'],
+      ['Meeting format',format.value]
+    ];
+    if (format.value==='In person') details.push(['Meeting address',address.value]);
+    const list = review.querySelector('dl');
+    list.replaceChildren();
+    for (const [label,value] of details) {
+      const term=document.createElement('dt'), description=document.createElement('dd');
+      term.textContent=label; description.textContent=value;
+      description.style.margin='0 0 .75rem'; list.append(term,description);
+    }
+    review.showModal();
+  });
+  document.getElementById('edit-meeting').onclick=()=>review.close();
+  document.getElementById('confirm-meeting').onclick=()=>{
+    review.close(); approved=true;
+    try { interviewForm.requestSubmit(submit); } finally { approved=false; }
+  };
+})();
+</script><script async defer src="https://accounts.google.com/gsi/client"></script></section></main>
 <script>
 const responses = ["An amplifier I was testing looked clean on the oscilloscope until I connected a speaker. Seeing the waveform clip made me look more closely at the load and how much current the output stage could deliver.","I’m interested in how physical limits shape what AI can do. With a sensor running on a small battery, which measurements are worth spending energy on? That kind of question draws me to embedded systems.","I’d like to work on embedded hardware or electronics testing. I can contribute at the bench by assembling circuits, taking scope measurements, and documenting what happens when a design meets a real load."];
 const questions = document.querySelectorAll('.questions button');
