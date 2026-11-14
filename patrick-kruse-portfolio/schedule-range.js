@@ -110,7 +110,7 @@
         const data=await getWindows(w);
         const match=data.openings.find(o=>o.date>from||(o.date===from&&(!Number.isFinite(after)||o.start>after||!gaps(from).some(g=>g.start<=after&&after<g.end)&&o.start===after)));
         if(match){fields.date.value=jump.value=match.date;if(week!==w||!openings)await loadWeek(w);else choose(match.date);
-          fields.start.value=format(match.start);fields.end.value=format(Math.min(match.end,match.start+30));selection();status.textContent='Selected '+match.date+' at '+clock(match.start)+'.';return}
+          fields.start.value=format(match.start);fields.end.value=format(Math.min(match.end,match.start+30));selection();status.textContent='';return}
       }
       status.textContent='No later openings in the booking window.';
     }catch{status.textContent='Could not check the calendar. Try again.'}finally{button.disabled=false}

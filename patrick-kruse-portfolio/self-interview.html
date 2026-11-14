@@ -48,7 +48,7 @@ function syncBookingFields(){
 interviewForm.addEventListener('input',syncBookingFields);
 interviewForm.addEventListener('submit',e=>{syncBookingFields();if(!interviewForm.reportValidity()||!bookingFields.token.value)e.preventDefault()});
 syncBookingFields();
-</script><link rel="stylesheet" href="schedule-range.css"><script src="schedule-range.js"></script><dialog id="meeting-review" aria-labelledby="review-heading" style="max-width:min(27rem,90vw);border:1px solid var(--line);border-radius:.65rem;padding:1.5rem;background:var(--surface);color:inherit"><h3 id="review-heading">Confirm meeting details</h3><dl></dl><button type="button" id="edit-meeting" autofocus>Edit details</button> <button type="button" id="confirm-meeting">Confirm and schedule</button></dialog>
+</script><link rel="stylesheet" href="schedule-range.css?v=blue-hover"><script src="schedule-range.js?v=calendar-feedback"></script><dialog id="meeting-review" aria-labelledby="review-heading" style="max-width:min(27rem,90vw);border:1px solid var(--line);border-radius:.65rem;padding:1.5rem;background:var(--surface);color:inherit"><h3 id="review-heading">Confirm meeting details</h3><dl></dl><button type="button" id="edit-meeting" autofocus>Edit details</button> <button type="button" id="confirm-meeting">Confirm and schedule</button></dialog>
 <script>
 (() => {
   const review = document.getElementById('meeting-review');

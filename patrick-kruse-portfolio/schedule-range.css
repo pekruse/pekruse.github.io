@@ -8,3 +8,7 @@
 #schedule button:enabled:active { outline: 2px solid currentColor; outline-offset: -2px; transform: translateY(1px); }
 #schedule button:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 #schedule button:disabled { cursor: default; }
+
+@media (hover:hover){#schedule button:enabled:hover{background:var(--surface-2);outline:none}}
+#schedule button:enabled:active,#schedule button:focus-visible{background:var(--surface-2)}
+#schedule button:enabled:focus-visible{outline:2px solid currentColor;outline-offset:3px}
