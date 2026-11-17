@@ -11,7 +11,7 @@ if (performance.getEntriesByType('navigation')[0]?.type === 'reload') {
 .role-preview:hover>.company-card,.role-preview:focus-visible>.company-card{display:flex}
 .company-card img{flex:none;object-fit:contain}
 </style><style>
-.profile-card .profile-photo { width:184px; height:184px; }
+.profile-card .profile-photo { width:200px; max-width:100%; height:auto; aspect-ratio:1; }
 .credential-item { position:relative; }
 .credential-tip { display:none; position:absolute; z-index:10; bottom:100%; left:0; width:min(245px,100%); padding:12px 16px; background:#174f86; color:#fff; border:1px solid #84b6eb; border-radius:6px; box-shadow:0 5px 16px #102c463d; }
 .credential-item:hover > .credential-tip, .credential-item:focus-within > .credential-tip { display:block; }
