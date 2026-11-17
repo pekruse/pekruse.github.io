@@ -18,7 +18,7 @@
 <label>Date<input type="date" name="date" required></label>
 <label>Start time (Eastern)<input type="time" name="start" min="14:00" max="16:59" required></label>
 <label>End time (Eastern)<input type="time" name="end" min="14:01" max="17:00" required></label>
-<label>Meeting format<select name="format"><option>Google Meet</option><option>In person</option></select></label>
+<label>Meeting format<select name="format"><option>Google Meet</option><option value="Zoom" disabled>Zoom (setup pending)</option><option>In person</option></select></label>
 <label hidden id="address-label">Meeting address<input name="address" maxlength="300" disabled></label>
 <input type="hidden" name="token">
 <div id="g_id_onload" data-client_id="970227434245-4cfu822ti8gc29jcjplmshpekqae4gfa.apps.googleusercontent.com" data-callback="interviewSignedIn" data-auto_prompt="false"></div>
@@ -48,7 +48,7 @@ function syncBookingFields(){
 interviewForm.addEventListener('input',syncBookingFields);
 interviewForm.addEventListener('submit',e=>{syncBookingFields();if(!interviewForm.reportValidity()||!bookingFields.token.value)e.preventDefault()});
 syncBookingFields();
-</script><link rel="stylesheet" href="schedule-range.css?v=calendar-gap-2"><script src="schedule-range.js?v=zoom-format"></script><dialog id="meeting-review" aria-labelledby="review-heading" style="max-width:min(27rem,90vw);border:1px solid var(--line);border-radius:.65rem;padding:1.5rem;background:var(--surface);color:inherit"><h3 id="review-heading">Confirm meeting details</h3><dl></dl><button type="button" id="edit-meeting" autofocus>Edit details</button> <button type="button" id="confirm-meeting">Confirm and schedule</button></dialog>
+</script><link rel="stylesheet" href="schedule-range.css?v=calendar-gap-2"><script src="schedule-range.js?v=zoom-status"></script><dialog id="meeting-review" aria-labelledby="review-heading" style="max-width:min(27rem,90vw);border:1px solid var(--line);border-radius:.65rem;padding:1.5rem;background:var(--surface);color:inherit"><h3 id="review-heading">Confirm meeting details</h3><dl></dl><button type="button" id="edit-meeting" autofocus>Edit details</button> <button type="button" id="confirm-meeting">Confirm and schedule</button></dialog>
 <script>
 (() => {
   const review = document.getElementById('meeting-review');
