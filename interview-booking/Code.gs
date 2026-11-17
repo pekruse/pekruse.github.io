@@ -1,3 +1,8 @@
+function configuredZoomLink() {
+  const link = (PropertiesService.getScriptProperties().getProperty('ZOOM_JOIN_URL') || '').trim();
+  return /^https:\/\/(?:[a-z0-9-]+\.)*zoom\.(?:us|com)\/(?:j\/\d+|my\/[a-z0-9._-]+)(?:\?[a-z0-9%&=._~-]+)?$/i.test(link) ? link : '';
+}
+
 const CALENDAR_ID = 'pekruse504@gmail.com';
 const ZONE = 'America/New_York';
 
@@ -32,7 +37,7 @@ function doGet(e) {
       rows+='<section><b>'+label+'</b><div class="track">'+gaps.map(([a,b])=>'<i style="left:'+a/1.8+'%;width:'+(b-a)/1.8+'%"></i>').join('')+'</div><small>'+ (gaps.length?gaps.map(([a,b])=>clock(a)+'–'+clock(b)+' PM').join(' · '):'No availability')+'</small></section>';
     }
   } catch(err) { openings.length=0; rows='<p>Calendar availability could not be loaded. Refresh to retry.</p>'; }
-  if (e && e.parameter.view === 'windows') return ContentService.createTextOutput('window.showInterviewWindows('+JSON.stringify({openings,week})+');').setMimeType(ContentService.MimeType.JAVASCRIPT);
+  if (e && e.parameter.view === 'windows') return ContentService.createTextOutput('window.showInterviewWindows('+JSON.stringify({openings,week,zoomAvailable:Boolean(configuredZoomLink())})+');').setMimeType(ContentService.MimeType.JAVASCRIPT);
   return HtmlService.createHtmlOutput('<meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{color-scheme:light dark}body{font:16px system-ui;margin:8px}section{margin:.7em 0}.track{position:relative;height:14px;border-radius:4px;overflow:hidden;background:repeating-linear-gradient(135deg,#8885 0 3px,transparent 3px 6px);border:1px solid #8887;margin:4px 0}.track i{position:absolute;inset-block:0;background:#16846e}small{font-size:.85em}</style>'+rows).setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
@@ -45,7 +50,8 @@ function doPost(e) {
     message = '<h2>Booking confirmed</h2><dl>'+row('Date',receipt.date)+row('Time',receipt.time)+row('Booked by',receipt.email)+row('Format',receipt.format);
     if (receipt.address) message += row('Meeting address',receipt.address);
     message += '</dl>';
-    if (/^https:\/\/meet\.google\.com\//.test(receipt.meet)) message += '<p><a target="_blank" rel="noopener" href="'+esc(receipt.meet)+'">Join Google Meet</a></p>';
+    if (receipt.zoom) message += '<p><a target="_blank" rel="noopener" href="'+esc(receipt.zoom)+'">Join Zoom meeting</a></p>';
+    else if (/^https:\/\/meet\.google\.com\//.test(receipt.meet)) message += '<p><a target="_blank" rel="noopener" href="'+esc(receipt.meet)+'">Join Google Meet</a></p>';
     else if (receipt.format==='Google Meet') message += '<p>Your calendar invitation will contain the Google Meet details.</p>';
   } catch (error) {
     message = String(error.message || 'Booking failed.').replace(/[&<>"']/g, '');
@@ -76,9 +82,10 @@ function reserve(input) {
       !['Tue','Thu'].includes(Utilities.formatDate(from, ZONE, 'EEE')) ||
       from.getTime() < Date.now() + 86400000)
     throw new Error('Choose a Tuesday or Thursday at least 24 hours ahead.');
+  const zoom = input.format === 'Zoom' ? configuredZoomLink() : '';
   const physical = input.format === 'In person';
   const address = String(input.address || '').trim();
-  if ((!physical && input.format !== 'Google Meet') || (physical && (!address || address.length > 300)))
+  if ((!physical && !zoom && input.format !== 'Google Meet') || (physical && (!address || address.length > 300)))
     throw new Error('Choose a format and enter the meeting address for an in-person interview.');
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
@@ -89,6 +96,7 @@ function reserve(input) {
     if (cal.busy.length) throw new Error('That time overlaps another event. Choose another range.');
     const event = {summary:'Interview with Patrick Kruse', start:{dateTime:timeMin}, end:{dateTime:timeMax}, attendees:[{email}], guestsCanInviteOthers:false};
     if (physical) event.location = address;
+    else if (zoom) event.location = zoom;
     else event.conferenceData = {createRequest:{requestId:Utilities.getUuid(),conferenceSolutionKey:{type:'hangoutsMeet'}}};
     const booked = Calendar.Events.insert(event,CALENDAR_ID,{sendUpdates:'all',conferenceDataVersion:1});
     const subject = 'Interview confirmed: '+input.date+' at '+input.start+' Eastern';
@@ -97,7 +105,7 @@ function reserve(input) {
       'Booked by: '+email,
       Utilities.formatDate(from,ZONE,'EEEE, MMMM d, yyyy'),
       Utilities.formatDate(from,ZONE,'h:mm a')+' – '+Utilities.formatDate(to,ZONE,'h:mm a z')+' ('+(end-start)+' minutes)',
-      physical ? 'In person: '+address : 'Google Meet: '+(booked.hangoutLink || 'See the Calendar invitation for joining details.'),
+      physical ? 'In person: '+address : zoom ? 'Zoom: '+zoom : 'Google Meet: '+(booked.hangoutLink || 'See the Calendar invitation for joining details.'),
       booked.htmlLink
     ].join('\n');
     for (const recipient of new Set([CALENDAR_ID.toLowerCase(),email.toLowerCase()])) {
@@ -107,6 +115,6 @@ function reserve(input) {
         console.error('Confirmation email failed for event '+booked.id+' ('+(recipient===CALENDAR_ID.toLowerCase()?'organizer':'guest')+'): '+error.message);
       }
     }
-    return {date:Utilities.formatDate(from,ZONE,'EEEE, MMMM d, yyyy'),time:Utilities.formatDate(from,ZONE,'h:mm a')+' – '+Utilities.formatDate(to,ZONE,'h:mm a z')+' ('+(end-start)+' minutes)',email,format:input.format,address:physical?address:'',meet:booked.hangoutLink||''};
+    return {date:Utilities.formatDate(from,ZONE,'EEEE, MMMM d, yyyy'),time:Utilities.formatDate(from,ZONE,'h:mm a')+' – '+Utilities.formatDate(to,ZONE,'h:mm a z')+' ('+(end-start)+' minutes)',email,zoom,format:input.format,address:physical?address:'',meet:booked.hangoutLink||''};
   } finally { lock.releaseLock(); }
 }
