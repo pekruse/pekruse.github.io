@@ -13,7 +13,8 @@ if (performance.getEntriesByType('navigation')[0]?.type === 'reload') {
 </style><style>
 #portrait-open { width:min(216px,100%); }
 .profile-card .profile-photo { width:100%; height:auto; aspect-ratio:1; }
-a[href^="#experience-"].quiet-link { text-decoration:underline; text-underline-offset:3px; }
+a[href^="#experience-"].quiet-link { text-decoration:none; }
+a[href^="#experience-"].quiet-link:is(:hover,:focus-visible) { text-decoration:underline; text-underline-offset:3px; }
 .credential-item { position:relative; }
 .credential-tip { display:none; position:absolute; z-index:10; bottom:100%; left:0; width:min(245px,100%); padding:12px 16px; background:#174f86; color:#fff; border:1px solid #84b6eb; border-radius:6px; box-shadow:0 5px 16px #102c463d; }
 .credential-item:hover > .credential-tip, .credential-item:focus-within > .credential-tip { display:block; }
