@@ -129,8 +129,8 @@
   for(const [id,delta] of [['prev-week',-1],['next-week',1]])get(id).onclick=()=>choose(iso(monday+(week+delta)*7*day));
   jump.onchange=()=>choose(jump.value);fields.date.onchange=()=>choose(fields.date.value);
   for(const slider of [start,end])slider.oninput=()=>{
-    if(slider===start)start.value=Math.min(+start.value,+end.value-1);
-    else end.value=Math.max(+end.value,+start.value+1);
+    if(slider===start)start.value=Math.min(+start.value,+end.value-5);
+    else end.value=Math.max(+end.value,+start.value+5);
     fields.start.value=format(+start.value);fields.end.value=format(+end.value);selection();
   };
   form.addEventListener('input',selection);form.addEventListener('signin',selection);
