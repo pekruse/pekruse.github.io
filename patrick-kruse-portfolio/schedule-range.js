@@ -67,6 +67,9 @@
       const json=body.replace(/^window\.showInterviewWindows\(/,'').replace(/\);$/,'');
       const data=JSON.parse(json);
       if(!Array.isArray(data.openings)||data.error)throw Error();
+      if (data.zoomAvailable && !fields.format.querySelector('option[value="Zoom"]')) {
+        fields.format.add(new Option('Zoom', 'Zoom'));
+      }
       return data;
     })().catch(err=>{cache.delete(n);throw err});
     cache.set(n,{promise,time:Date.now()});return promise;
