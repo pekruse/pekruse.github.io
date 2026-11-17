@@ -67,7 +67,11 @@
       const json=body.replace(/^window\.showInterviewWindows\(/,'').replace(/\);$/,'');
       const data=JSON.parse(json);
       if(!Array.isArray(data.openings)||data.error)throw Error();
-      if (data.zoomAvailable && !fields.format.querySelector('option[value="Zoom"]')) {
+      const zoomOption = fields.format.querySelector('option[value="Zoom"]');
+      if (zoomOption) {
+        zoomOption.disabled = !data.zoomAvailable;
+        zoomOption.textContent = data.zoomAvailable ? 'Zoom' : 'Zoom (setup pending)';
+      } else if (data.zoomAvailable && !fields.format.querySelector('option[value="Zoom"]')) {
         fields.format.add(new Option('Zoom', 'Zoom'));
       }
       return data;
