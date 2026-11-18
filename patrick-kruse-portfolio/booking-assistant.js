@@ -129,7 +129,7 @@
       },true);
     }else if(format==='In person'){
       message('assistant','Where should the meeting take place?');
-      const address=field('Meeting address','text',fields.address.value);address.maxLength=300;
+      const address=field('Meeting address','text',fields.address.value);address.maxLength=300;address.name='street-address';address.autocomplete='street-address';
       action('Continue',()=>{if(!address.value.trim()){message('assistant','Please enter the meeting address.');address.focus();return;}fields.address.value=address.value.trim();sync();signIn();},true);
     }else if(format==='Microsoft Teams'){
       message('assistant','Have a Teams meeting link? Add it below, or skip and Patrick will email joining details separately.');
