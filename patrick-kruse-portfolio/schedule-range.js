@@ -57,7 +57,9 @@
     const first=gaps(date)[0]; fields.start.value=format(first?.start??840);fields.end.value=format(first?Math.min(first.start+30,first.end):870);render();
   }
   const cache=new Map();
-  function getWindows(n){
+  function getWindows(n,refresh=false){
+    if(!Number.isInteger(n)||n<0||n>12)return Promise.reject(new Error("Date outside booking window"));
+    if(refresh)cache.delete(n);
     const entry=cache.get(n);
     if(entry && Date.now()-entry.time<60000)return entry.promise;
     const promise=(async()=>{
@@ -67,6 +69,7 @@
       const json=body.replace(/^window\.showInterviewWindows\(/,'').replace(/\);$/,'');
       const data=JSON.parse(json);
       if(!Array.isArray(data.openings)||data.error)throw Error();
+      data.openings=data.openings.filter(w=>/^\d{4}-\d{2}-\d{2}$/.test(w.date)&&Number.isFinite(w.start)&&Number.isFinite(w.end)&&w.start>=840&&w.end<=1020&&w.start<w.end);
       for (const value of ['Microsoft Teams','Phone call']) {
         const option=fields.format.querySelector('option[value="'+value+'"]');
         if(option){option.disabled=!data.additionalFormats;option.textContent=data.additionalFormats?value:value+' (setup pending)';}
@@ -146,5 +149,26 @@
   };
   form.addEventListener('input',selection);form.addEventListener('signin',selection);
   form.addEventListener('submit',e=>{selection();if(!form.reportValidity())e.preventDefault()});
+  const weekFor=date=>Math.floor((stamp(date)-monday)/(7*day));
+  const contains=(data,date,a,b)=>Number.isFinite(a)&&Number.isFinite(b)&&a<b&&b-a<=180&&data.openings.some(w=>w.date===date&&w.start<=a&&b<=w.end);
+  window.interviewCalendar={
+    today,maxDate:jump.max,weekFor,getWindows,
+    async selectRange(date,a,b){
+      const n=weekFor(date),data=await getWindows(n,true);
+      if(!contains(data,date,a,b))throw Error('Time unavailable');
+      request++;week=n;openings=data.openings;error=false;
+      fields.date.value=jump.value=date;fields.start.value=format(a);fields.end.value=format(b);
+      get('prev-week').disabled=n===0;get('next-week').disabled=n===12;
+      get('week-status').textContent='Week of '+iso(monday+n*7*day)+' · Eastern time';
+      form.dispatchEvent(new Event('input',{bubbles:true}));render();
+    },
+    async verifySelection(){
+      const date=fields.date.value,a=minutes(fields.start.value),b=minutes(fields.end.value);
+      const data=await getWindows(weekFor(date),true);
+      if(!contains(data,date,a,b))throw Error('Time unavailable');
+      if(date!==fields.date.value||a!==minutes(fields.start.value)||b!==minutes(fields.end.value))throw Error('Selection changed');
+      openings=data.openings;selection();return true;
+    }
+  };
   fields.date.value=jump.value=today;loadWeek(0);
 })();
