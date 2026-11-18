@@ -45,7 +45,12 @@ if (portraitDialog) {
   portraitDialog.addEventListener('close', () => trigger.focus({preventScroll: true}));
 }
 
-for (const portrait of document.querySelectorAll('#portrait-open, #portrait-dialog img')) {
+for (const portrait of document.querySelectorAll('img, #portrait-open')) {
+  portrait.setAttribute('draggable', 'false');
+  portrait.style.setProperty('-webkit-touch-callout', 'none');
+  portrait.style.setProperty('-webkit-user-drag', 'none');
+  portrait.style.setProperty('-webkit-user-select', 'none');
+  portrait.style.setProperty('user-select', 'none');
   portrait.addEventListener('contextmenu', event => event.preventDefault());
   portrait.addEventListener('dragstart', event => event.preventDefault());
 }
