@@ -67,6 +67,10 @@
       const json=body.replace(/^window\.showInterviewWindows\(/,'').replace(/\);$/,'');
       const data=JSON.parse(json);
       if(!Array.isArray(data.openings)||data.error)throw Error();
+      for (const value of ['Microsoft Teams','Phone call']) {
+        const option=fields.format.querySelector('option[value="'+value+'"]');
+        if(option){option.disabled=!data.additionalFormats;option.textContent=data.additionalFormats?value:value+' (setup pending)';}
+      }
       const zoomOption = fields.format.querySelector('option[value="Zoom"]');
       if (zoomOption) {
         zoomOption.disabled = !data.zoomAvailable;

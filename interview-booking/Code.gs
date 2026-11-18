@@ -87,7 +87,7 @@ function doGet(e) {
       rows+='<section><b>'+label+'</b><div class="track">'+gaps.map(([a,b])=>'<i style="left:'+a/1.8+'%;width:'+(b-a)/1.8+'%"></i>').join('')+'</div><small>'+ (gaps.length?gaps.map(([a,b])=>clock(a)+'–'+clock(b)+' PM').join(' · '):'No availability')+'</small></section>';
     }
   } catch(err) { openings.length=0; rows='<p>Calendar availability could not be loaded. Refresh to retry.</p>'; }
-  if (e && e.parameter.view === 'windows') return ContentService.createTextOutput('window.showInterviewWindows('+JSON.stringify({openings,week,zoomAvailable:Boolean(zoomConfiguration())})+');').setMimeType(ContentService.MimeType.JAVASCRIPT);
+  if (e && e.parameter.view === 'windows') return ContentService.createTextOutput('window.showInterviewWindows('+JSON.stringify({openings,week,additionalFormats:true,zoomAvailable:Boolean(zoomConfiguration())})+');').setMimeType(ContentService.MimeType.JAVASCRIPT);
   return HtmlService.createHtmlOutput('<meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{color-scheme:light dark}body{font:16px system-ui;margin:8px}section{margin:.7em 0}.track{position:relative;height:14px;border-radius:4px;overflow:hidden;background:repeating-linear-gradient(135deg,#8885 0 3px,transparent 3px 6px);border:1px solid #8887;margin:4px 0}.track i{position:absolute;inset-block:0;background:#16846e}small{font-size:.85em}</style>'+rows).setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
@@ -99,6 +99,9 @@ function doPost(e) {
     const row = (label,value) => '<dt style="margin-top:1em"><strong>'+label+'</strong></dt><dd style="margin:0">'+esc(value)+'</dd>';
     message = '<h2>Booking confirmed</h2><dl>'+row('Date',receipt.date)+row('Time',receipt.time)+row('Booked by',receipt.email)+row('Format',receipt.format);
     if (receipt.address) message += row('Meeting address',receipt.address);
+    if (receipt.phone) message += row('Phone number',receipt.phone);
+    if (receipt.format === 'Phone call') message += row('Call details','Patrick will call the number you provided.');
+    if (receipt.format === 'Microsoft Teams') message += row('Teams details',receipt.teams || 'A Microsoft Teams joining link will be emailed separately.');
     message += '</dl>';
     if (receipt.zoom) message += '<p><a target="_blank" rel="noopener" href="'+esc(receipt.zoom)+'">Join Zoom meeting</a></p>';
     else if (/^https:\/\/meet\.google\.com\//.test(receipt.meet)) message += '<p><a target="_blank" rel="noopener" href="'+esc(receipt.meet)+'">Join Google Meet</a></p>';
@@ -135,8 +138,17 @@ function reserve(input) {
   const wantsZoom = input.format === 'Zoom';
   if (wantsZoom && !zoomConfiguration()) throw new Error('Zoom is not available yet. Choose another meeting format.');
   const physical = input.format === 'In person';
+  const phoneCall = input.format === 'Phone call';
+  const teamsCall = input.format === 'Microsoft Teams';
+  const phone = phoneCall ? String(input.phone || '').trim() : '';
+  const teams = teamsCall ? String(input.teams || '').trim() : '';
+  if (phoneCall && (!/^[+\d\s().-]{7,40}$/.test(phone) || phone.replace(/\D/g,'').length < 7 || phone.replace(/\D/g,'').length > 15))
+    throw new Error('Enter a valid phone number, including country code.');
+  if (teams && (teams.length > 2000 || !/^https:\/\/(?:teams\.microsoft\.com|teams\.live\.com|teams\.cloud\.microsoft)\/(?:l\/meetup-join\/|meet\/)[^\s<>"']+$/i.test(teams)))
+    throw new Error('Enter a valid Microsoft Teams meeting link, or leave it blank.');
+  const teamsDetails = teams || 'A Microsoft Teams joining link will be emailed separately.';
   const address = String(input.address || '').trim();
-  if ((!physical && !wantsZoom && input.format !== 'Google Meet') || (physical && (!address || address.length > 300)))
+  if ((!physical && !wantsZoom && !phoneCall && !teamsCall && input.format !== 'Google Meet') || (physical && (!address || address.length > 300)))
     throw new Error('Choose a format and enter the meeting address for an in-person interview.');
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
@@ -148,7 +160,13 @@ function reserve(input) {
     const zoomMeeting = wantsZoom ? createBookingZoom(from, end-start) : null;
     const zoom = zoomMeeting ? zoomMeeting.join : '';
     const event = {summary:'Interview with Patrick Kruse', start:{dateTime:timeMin}, end:{dateTime:timeMax}, attendees:[{email}], guestsCanInviteOthers:false};
-    if (physical) event.location = address;
+    if (phoneCall) {
+      event.location = 'Phone call';
+      event.description = 'Patrick will call: '+phone;
+    } else if (teamsCall) {
+      event.location = teams || 'Microsoft Teams';
+      event.description = 'Microsoft Teams: '+teamsDetails;
+    } else if (physical) event.location = address;
     else if (zoom) {
       event.location = zoom;
       event.description = 'Join Zoom meeting: '+zoom;
@@ -168,7 +186,7 @@ function reserve(input) {
       'Booked by: '+email,
       Utilities.formatDate(from,ZONE,'EEEE, MMMM d, yyyy'),
       Utilities.formatDate(from,ZONE,'h:mm a')+' – '+Utilities.formatDate(to,ZONE,'h:mm a z')+' ('+(end-start)+' minutes)',
-      physical ? 'In person: '+address : zoom ? 'Zoom: '+zoom : 'Google Meet: '+(booked.hangoutLink || 'See the Calendar invitation for joining details.'),
+      phoneCall ? 'Phone call: Patrick will call '+phone : teamsCall ? 'Microsoft Teams: '+teamsDetails : physical ? 'In person: '+address : zoom ? 'Zoom: '+zoom : 'Google Meet: '+(booked.hangoutLink || 'See the Calendar invitation for joining details.'),
       booked.htmlLink
     ].join('\n');
     for (const recipient of new Set([CALENDAR_ID.toLowerCase(),email.toLowerCase()])) {
@@ -178,6 +196,6 @@ function reserve(input) {
         console.error('Confirmation email failed for event '+booked.id+' ('+(recipient===CALENDAR_ID.toLowerCase()?'organizer':'guest')+'): '+error.message);
       }
     }
-    return {date:Utilities.formatDate(from,ZONE,'EEEE, MMMM d, yyyy'),time:Utilities.formatDate(from,ZONE,'h:mm a')+' – '+Utilities.formatDate(to,ZONE,'h:mm a z')+' ('+(end-start)+' minutes)',email,zoom,format:input.format,address:physical?address:'',meet:booked.hangoutLink||''};
+    return {date:Utilities.formatDate(from,ZONE,'EEEE, MMMM d, yyyy'),time:Utilities.formatDate(from,ZONE,'h:mm a')+' – '+Utilities.formatDate(to,ZONE,'h:mm a z')+' ('+(end-start)+' minutes)',email,zoom,phone,teams,format:input.format,address:physical?address:'',meet:booked.hangoutLink||''};
   } finally { lock.releaseLock(); }
 }

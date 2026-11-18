@@ -18,8 +18,10 @@
 <label>Date<input type="date" name="date" required></label>
 <label>Start time (Eastern)<input type="time" name="start" min="14:00" max="16:59" required></label>
 <label>End time (Eastern)<input type="time" name="end" min="14:01" max="17:00" required></label>
-<label>Meeting format<select name="format"><option>Google Meet</option><option value="Zoom" disabled>Zoom (setup pending)</option><option>In person</option></select></label>
+<label>Meeting format<select name="format"><option>Google Meet</option><option value="Zoom" disabled>Zoom (setup pending)</option><option value="Microsoft Teams" disabled>Microsoft Teams (setup pending)</option><option value="Phone call" disabled>Phone call (setup pending)</option><option>In person</option></select></label>
 <label hidden id="address-label">Meeting address<input name="address" maxlength="300" disabled></label>
+<label hidden id="phone-label">Phone number (including country code)<input type="tel" name="phone" autocomplete="tel" maxlength="40" placeholder="+1 555 123 4567" disabled><small>Patrick will call this number at your booked time.</small></label>
+<label hidden id="teams-label">Microsoft Teams meeting link (optional)<input type="url" name="teams" maxlength="2000" placeholder="https://teams.microsoft.com/…" disabled><small>Provide your meeting link, or Patrick will email one separately.</small></label>
 <input type="hidden" name="token">
 <div id="g_id_onload" data-client_id="970227434245-4cfu822ti8gc29jcjplmshpekqae4gfa.apps.googleusercontent.com" data-callback="interviewSignedIn" data-auto_prompt="false"></div>
 <div class="g_id_signin" data-type="standard"></div>
@@ -38,6 +40,13 @@ function interviewSignedIn(result){
 }
 function syncBookingFields(){
   const physical=bookingFields.format.value==='In person';
+  const phoneCall=bookingFields.format.value==='Phone call';
+  const teamsCall=bookingFields.format.value==='Microsoft Teams';
+  document.getElementById('phone-label').hidden=!phoneCall;
+  bookingFields.phone.disabled=!phoneCall;
+  bookingFields.phone.required=phoneCall;
+  document.getElementById('teams-label').hidden=!teamsCall;
+  bookingFields.teams.disabled=!teamsCall;
   document.getElementById('address-label').hidden=!physical;
   bookingFields.address.disabled=!physical;
   bookingFields.address.required=physical;
@@ -48,7 +57,7 @@ function syncBookingFields(){
 interviewForm.addEventListener('input',syncBookingFields);
 interviewForm.addEventListener('submit',e=>{syncBookingFields();if(!interviewForm.reportValidity()||!bookingFields.token.value)e.preventDefault()});
 syncBookingFields();
-</script><link rel="stylesheet" href="schedule-range.css?v=calendar-gap-2"><script src="schedule-range.js?v=zoom-status"></script><dialog id="meeting-review" aria-labelledby="review-heading" style="max-width:min(27rem,90vw);border:1px solid var(--line);border-radius:.65rem;padding:1.5rem;background:var(--surface);color:inherit"><h3 id="review-heading">Confirm meeting details</h3><dl></dl><button type="button" id="edit-meeting" autofocus>Edit details</button> <button type="button" id="confirm-meeting">Confirm and schedule</button></dialog>
+</script><link rel="stylesheet" href="schedule-range.css?v=calendar-gap-2"><script src="schedule-range.js?v=additional-formats"></script><dialog id="meeting-review" aria-labelledby="review-heading" style="max-width:min(27rem,90vw);border:1px solid var(--line);border-radius:.65rem;padding:1.5rem;background:var(--surface);color:inherit"><h3 id="review-heading">Confirm meeting details</h3><dl></dl><button type="button" id="edit-meeting" autofocus>Edit details</button> <button type="button" id="confirm-meeting">Confirm and schedule</button></dialog>
 <script>
 (() => {
   const review = document.getElementById('meeting-review');
@@ -58,7 +67,7 @@ syncBookingFields();
     if (event.defaultPrevented) return;
     if (approved) { approved = false; submit.disabled = true; return; }
     event.preventDefault();
-    const {date,start,end,format,address} = bookingFields;
+    const {date,start,end,format,address,phone,teams} = bookingFields;
     const showTime = value => new Date('2000-01-01T'+value+'Z').toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',timeZone:'UTC'});
     const details = [
       ['Date',new Date(date.value+'T12:00:00Z').toLocaleDateString('en-US',{dateStyle:'full',timeZone:'UTC'})],
@@ -67,6 +76,8 @@ syncBookingFields();
       ['Meeting format',format.value]
     ];
     if (format.value==='In person') details.push(['Meeting address',address.value]);
+    if (format.value==='Phone call') details.push(['Phone number',phone.value],['Call details','Patrick will call you.']);
+    if (format.value==='Microsoft Teams') details.push(['Teams details',teams.value || 'Joining link will be emailed separately.']);
     const list = review.querySelector('dl');
     list.replaceChildren();
     for (const [label,value] of details) {

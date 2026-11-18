@@ -30,7 +30,7 @@ function harness(options={}) {
     MailApp:{sendEmail:(...args)=>{if(options.mailFail)throw Error('Mail failed');emails.push(args)}}
   };
   vm.createContext(ctx);vm.runInContext(source,ctx);
-  const book=(format='Zoom')=>ctx.reserve({token:'google-token',date:'2026-11-24',start:'14:00',end:'14:30',format,address:'Office'});
+  const book=(format='Zoom',extra={})=>ctx.reserve({token:'google-token',date:'2026-11-24',start:'14:00',end:'14:30',format,address:'Office',...extra});
   return {ctx,book,calls,events,emails,released:()=>released};
 }
 
@@ -76,3 +76,33 @@ test('email failure does not undo a successful booking',()=>{
   const h=harness({mailFail:true});assert.ok(h.book().zoom);
   assert.equal(h.events.length,1);assert.ok(!h.calls.some(c=>c.opts.method==='delete'));
 });
+
+test('phone number appears in receipt and invitation without Google Meet',()=>{
+  const h=harness({properties:{}}), r=h.book('Phone call',{phone:'+1 (555) 123-4567'});
+  assert.equal(r.phone,'+1 (555) 123-4567');
+  assert.ok(h.events[0].description.includes(r.phone));
+  assert.equal(h.events[0].conferenceData,undefined);
+  assert.ok(h.emails[0][2].includes('Patrick will call'));
+});
+test('missing or invalid phone rejected',()=>{
+  for(const phone of ['', 'bad', '123', '1234567890123456']){
+    const h=harness();assert.throws(()=>h.book('Phone call',{phone}),/phone number/);
+    assert.equal(h.events.length,0);
+  }
+});
+test('Teams without link clearly promises separate joining details',()=>{
+  const h=harness({properties:{}}),r=h.book('Microsoft Teams');
+  assert.equal(r.teams,'');assert.equal(h.events[0].conferenceData,undefined);
+  assert.ok(h.emails[0][2].includes('joining link will be emailed separately'));
+});
+test('Teams link is stored in invitation and receipt',()=>{
+  const h=harness({properties:{}}),url='https://teams.microsoft.com/l/meetup-join/test';
+  assert.equal(h.book('Microsoft Teams',{teams:url}).teams,url);
+  assert.equal(h.events[0].location,url);
+});
+test('untrusted Teams URLs are rejected',()=>{
+  const h=harness();assert.throws(()=>h.book('Microsoft Teams',{teams:'https://evil.example/meet/test'}),/valid Microsoft Teams/);
+  assert.equal(h.events.length,0);
+});
+
+
