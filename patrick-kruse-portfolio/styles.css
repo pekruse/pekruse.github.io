@@ -42,3 +42,8 @@
 .credentials li,.credential-link{display:flex;flex-direction:column;align-items:flex-start;gap:10px}
 .credential-link{height:100%}
 .credential-icon{width:64px;height:48px;margin-top:auto;color:var(--accent)}
+
+/* Consistent interview booking link styling across portfolio pages. */
+a:is([href$="self-interview.html#schedule"],[href="#schedule"]){font-weight:700;color:#000}
+:root[data-theme=dark] a:is([href$="self-interview.html#schedule"],[href="#schedule"]){color:#fff}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]) a:is([href$="self-interview.html#schedule"],[href="#schedule"]){color:#fff}}
