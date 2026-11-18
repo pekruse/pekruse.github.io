@@ -74,7 +74,7 @@ function doGet(e) {
     const calendar = Calendar.Freebusy.query({timeMin:new Date(days[0].start).toISOString(),timeMax:new Date(days[1].start+duration).toISOString(),items:[{id:CALENDAR_ID}]}).calendars[CALENDAR_ID];
     if (!calendar || calendar.errors || !Array.isArray(calendar.busy)) throw Error();
     for (const day of days) {
-      let cursor = Math.max(0, Math.ceil((Date.now()+86400000-day.start)/60000));
+      let cursor = Math.max(0, Math.ceil((Date.now()-day.start)/60000));
       const gaps = [];
       const busy = calendar.busy.map(b=>[Math.max(0,Math.floor((Date.parse(b.start)-day.start)/60000)),Math.min(180,Math.ceil((Date.parse(b.end)-day.start)/60000))]).filter(b=>b[1]>b[0]).sort((a,b)=>a[0]-b[0]);
       for (const [start,end] of busy.concat([[180,180]])) {
@@ -133,8 +133,8 @@ function reserve(input) {
   const from = parse(input.start), to = parse(input.end);
   if (Utilities.formatDate(from, ZONE, 'yyyy-MM-dd') !== input.date ||
       !['Tue','Thu'].includes(Utilities.formatDate(from, ZONE, 'EEE')) ||
-      from.getTime() < Date.now() + 86400000)
-    throw new Error('Choose a Tuesday or Thursday at least 24 hours ahead.');
+      from.getTime() <= Date.now())
+    throw new Error('Choose a future time on Tuesday or Thursday.');
   const wantsZoom = input.format === 'Zoom';
   if (wantsZoom && !zoomConfiguration()) throw new Error('Zoom is not available yet. Choose another meeting format.');
   const physical = input.format === 'In person';

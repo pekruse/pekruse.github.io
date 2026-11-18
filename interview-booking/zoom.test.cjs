@@ -9,7 +9,7 @@ function harness(options={}) {
   const properties = options.properties || {ZOOM_ACCOUNT_ID:'account',ZOOM_CLIENT_ID:'client',ZOOM_CLIENT_SECRET:'secret',ZOOM_HOST_USER_ID:'host@example.com'};
   let count=0, released=0;
   const response=(status,body)=>({getResponseCode:()=>status,getContentText:()=>JSON.stringify(body)});
-  const fixedDate = class extends Date { static now(){return Date.parse('2026-11-18T12:00:00Z')} };
+  const fixedDate = class extends Date { static now(){return Date.parse(options.now || '2026-11-18T12:00:00Z')} };
   const ctx = {
     Date:fixedDate,console:{error:()=>{}},
     PropertiesService:{getScriptProperties:()=>({getProperty:key=>properties[key]})},
@@ -106,3 +106,14 @@ test('untrusted Teams URLs are rejected',()=>{
 });
 
 
+
+test('same-day booking fifteen minutes ahead is accepted',()=>{
+  const h=harness({now:'2026-11-24T18:45:00Z'});
+  assert.equal(h.book('Google Meet').format,'Google Meet');
+  assert.equal(h.events.length,1);
+});
+test('a start time already in the past is rejected',()=>{
+  const h=harness({now:'2026-11-24T19:01:00Z'});
+  assert.throws(()=>h.book('Google Meet'),/future time/);
+  assert.equal(h.events.length,0);
+});
