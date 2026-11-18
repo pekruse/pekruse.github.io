@@ -43,7 +43,6 @@
     enter('welcome','Ready when you are');log.replaceChildren();
     message('assistant','Let’s book a conversation with Patrick. I’ll check the live calendar and guide you through each step—no AI needed.');
     action('Book a meeting',chooseDuration,true);
-    action('Use my form selection',()=>{duration=Math.max(5,(Number(fields.end.value.slice(0,2))*60+Number(fields.end.value.slice(3)))-(Number(fields.start.value.slice(0,2))*60+Number(fields.start.value.slice(3))))||30;review();});
     updateSummary();
   }
   function chooseDuration(){
