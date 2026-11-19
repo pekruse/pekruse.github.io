@@ -3,6 +3,21 @@
   if(!form)return;
   const fields=form.elements,button=document.getElementById('zoom-signin'),status=document.getElementById('booking-status');
   let session=null,flow=0,popup=null,expiryTimer=null;
+  const switchPanel=document.createElement('div');
+  switchPanel.hidden=true;switchPanel.id='zoom-switch-account';switchPanel.setAttribute('role','group');switchPanel.setAttribute('aria-label','Switch Zoom account');
+  const switchHelp=document.createElement('p'),portal=document.createElement('a'),continueButton=document.createElement('button'),cancelButton=document.createElement('button');
+  switchHelp.textContent='Zoom uses the account signed into this browser. Open Zoom and switch accounts, or sign out and sign in with another account. Then return here and continue.';
+  portal.href='https://zoom.us/profile';portal.target='_blank';portal.rel='noopener noreferrer';portal.textContent='Open Zoom account';
+  continueButton.type='button';continueButton.textContent='Continue with Zoom';
+  cancelButton.type='button';cancelButton.textContent='Cancel';
+  switchPanel.style.cssText='margin-top:12px;max-width:38rem;';
+  portal.style.cssText='display:inline-block;margin:0 12px 12px 0;';
+  continueButton.style.cssText='margin:0 12px 12px 0;';cancelButton.style.cssText='margin-bottom:12px;';
+  switchPanel.append(switchHelp,portal,document.createElement('br'),continueButton,cancelButton);
+  button.after(switchPanel);
+  button.setAttribute('aria-controls',switchPanel.id);button.setAttribute('aria-expanded','false');
+  function hideSwitch(){switchPanel.hidden=true;button.setAttribute('aria-expanded','false');}
+  function showSwitch(){switchPanel.hidden=false;button.setAttribute('aria-expanded','true');portal.focus();}
   const zoomReady=()=>Boolean(session&&session.expiresAt>Date.now()+15000&&fields.zoomSession.value&&fields.zoomVerifier.value);
   function render(){
     const zoom=fields.format.value==='Zoom';
@@ -27,6 +42,8 @@
   }
   async function start(){
     if(!window.zoomOAuthAvailable)throw Error('Deploy the updated backend before using Zoom sign-in.');
+    hideSwitch();
+    const previousEmail=zoomReady()?session.email:null;
     const current=++flow;
     if(popup&&!popup.closed)popup.close();
     popup=window.open('about:blank','patrick-zoom-signin','width=560,height=740');
@@ -51,7 +68,11 @@
           session={email:result.email,name:result.name,expiresAt:result.expiresAt};
           fields.zoomSession.value=result.session;fields.zoomVerifier.value=verifier;
           expiryTimer=setTimeout(()=>{clear();notify();},Math.max(0,result.expiresAt-Date.now()-15000));
-          if(popup&&!popup.closed)popup.close();notify();return session;
+          if(popup&&!popup.closed)popup.close();notify();
+          if(previousEmail&&previousEmail.toLowerCase()===result.email.toLowerCase()){
+            showSwitch();status.textContent='Zoom returned the same account: '+result.email+'. Switch accounts in Zoom, then continue here.';
+          }
+          return session;
         }
         if(popup.closed)throw Error('Zoom sign-in was closed before it finished. Please try again.');
       }
@@ -62,7 +83,12 @@
     }
   }
   window.bookingAuth={ready:()=>fields.format.value==='Zoom'?zoomReady():Boolean(fields.token.value),zoomReady,startZoom:start,render};
-  button.addEventListener('click',()=>start().catch(error=>{status.textContent=error.message;}));
+  button.addEventListener('click',()=>{
+    if(zoomReady()){if(switchPanel.hidden)showSwitch();else hideSwitch();return;}
+    start().catch(error=>{status.textContent=error.message;});
+  });
+  continueButton.addEventListener('click',()=>start().catch(error=>{status.textContent=error.message;}));
+  cancelButton.addEventListener('click',()=>{hideSwitch();button.focus();});
   form.addEventListener('input',render);form.addEventListener('signin',render);
   window.addEventListener('pagehide',()=>{flow++;if(popup&&!popup.closed)popup.close();});
   render();
