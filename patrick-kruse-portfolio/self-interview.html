@@ -18,7 +18,7 @@
 <label>Date<input type="date" name="date" required></label>
 <label>Start time (Eastern)<input type="time" name="start" min="14:00" max="16:59" required></label>
 <label>End time (Eastern)<input type="time" name="end" min="14:01" max="17:00" required></label>
-<label>Meeting format<select name="format"><option>Google Meet</option><option value="Zoom" disabled>Zoom (setup pending)</option><option value="Microsoft Teams" disabled>Microsoft Teams (setup pending)</option><option value="Phone call" disabled>Phone call (setup pending)</option><option>In person</option></select></label>
+<label>Meeting format<select name="format"><option value="Zoom" disabled>Zoom (setup pending)</option><option value="Microsoft Teams" disabled>Microsoft Teams (setup pending)</option><option>Google Meet</option><option>In person</option><option value="Phone call" disabled>Phone call (setup pending)</option></select></label>
 <label hidden id="address-label">Meeting address<input type="text" name="address" autocomplete="street-address" maxlength="300" disabled></label>
 <label hidden id="phone-label">Phone number (including country code)<input type="tel" name="phone" autocomplete="tel" maxlength="40" placeholder="+1 555 123 4567" disabled><small>Patrick will call this number at your booked time.</small></label>
 <label hidden id="teams-label">Microsoft Teams meeting link (optional)<input type="url" name="teams" maxlength="2000" placeholder="https://teams.microsoft.com/…" disabled><small>Provide your meeting link, or Patrick will email one separately.</small></label>
