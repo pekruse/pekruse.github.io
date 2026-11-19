@@ -71,3 +71,20 @@ test('Teams rejects unrelated links and allows joining details to be sent separa
 test('format disabled during availability recheck cannot be submitted',async()=>{
   const h=setup();await toFormat(h);await h.click('Google Meet');h.booking.elements.format.options[0].disabled=true;await h.click('Confirm and schedule');assert.equal(h.counts().submits,0);assert.match(h.text(),/no longer available/);
 });
+
+test('Zoom requires Zoom sign-in even when a Google token is present',async()=>{
+  const h=setup();h.win.bookingAuth={zoomReady:()=>false,startZoom:async()=>{}};
+  await toFormat(h);await h.click('Zoom');assert.match(h.text(),/Sign in with your Zoom account/);
+  assert.ok(h.labels().includes('Sign in with Zoom'));assert.ok(!h.labels().includes('Confirm and schedule'));
+});
+test('Zoom sign-in completes the chat identity step',async()=>{
+  const h=setup({signed:false});let ready=false;
+  h.win.bookingAuth={zoomReady:()=>ready,startZoom:async()=>{ready=true;h.booking.dispatchEvent({type:'signin'});}};
+  await toFormat(h);await h.click('Zoom');await h.click('Sign in with Zoom');
+  assert.ok(h.labels().includes('Confirm and schedule'));
+});
+test('Zoom identity cannot satisfy Google Meet sign-in',async()=>{
+  const h=setup({signed:false});h.win.bookingAuth={zoomReady:()=>true,startZoom:async()=>{}};
+  await toFormat(h);await h.click('Zoom');await h.click('Change format');await h.click('Google Meet');
+  assert.match(h.text(),/Sign in with Google/);assert.ok(!h.labels().includes('Confirm and schedule'));
+});

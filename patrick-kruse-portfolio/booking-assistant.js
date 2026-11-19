@@ -142,11 +142,21 @@
     back('Meeting format',chooseFormat);
   }
   function signedIn(){
+    if(fields.format.value==='Zoom')return Boolean(window.bookingAuth?.zoomReady());
     if(!fields.token.value)return false;
     try{return JSON.parse(atob(fields.token.value.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))).exp*1000>Date.now()+30000;}catch{return false;}
   }
   function signIn(){
     if(signedIn()){review();return;}
+    if(fields.format.value==='Zoom'){
+      enter('signin','Step 5 of 6 · Zoom sign-in');
+      message('assistant','Sign in with your Zoom account to receive your Zoom invitation.');
+      action('Sign in with Zoom',()=>{
+        if(!window.bookingAuth){message('assistant','Zoom sign-in is still loading. Please try again.');return;}
+        window.bookingAuth.startZoom().catch(error=>message('assistant',error.message));
+      },true);
+      back('Meeting format',chooseFormat);return;
+    }
     const id=enter('signin','Step 5 of 6 · Google sign-in');
     message('assistant','Sign in with Google so your booking and invitation go to a verified email address.');
     const slot=document.createElement('div');slot.className='assistant-google';controls.append(slot);

@@ -34,7 +34,7 @@
     get('selection').textContent=Number.isFinite(a)&&Number.isFinite(b)?fields.start.value+' – '+fields.end.value+' Eastern':'Choose start and end times';
     get('range-note').textContent=!openings?(error?'Availability unavailable. Retry the week.':'Loading availability…'):valid?(b-a)+' minutes available':a>=b?'End must follow start.':'Red marks selected time outside an opening.';
     fields.end.setCustomValidity(valid?'':'Choose a range within one available opening.');
-    form.querySelector('[type=submit]').disabled=!valid||!fields.token.value;
+    form.querySelector('[type=submit]').disabled=!valid||!window.bookingIdentityReady?.();
   }
   function render(){
     const list=get('week-days');list.replaceChildren();
@@ -74,6 +74,8 @@
         const option=fields.format.querySelector('option[value="'+value+'"]');
         if(option){option.disabled=!data.additionalFormats;option.textContent=data.additionalFormats?value:value+' (setup pending)';}
       }
+      window.zoomOAuthAvailable=Boolean(data.zoomOAuthAvailable);
+      if(window.bookingAuth)window.bookingAuth.render();
       const zoomOption = fields.format.querySelector('option[value="Zoom"]');
       if (zoomOption) {
         zoomOption.disabled = !data.zoomAvailable;

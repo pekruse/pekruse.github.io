@@ -1,53 +1,76 @@
-# Unique Zoom meetings for website bookings
+# Combined Zoom sign-in and meeting creation
 
-Every Zoom booking creates a new scheduled meeting (`type: 2`, `use_pmi: false`).
-The attendee join URL is included in the calendar event, confirmation page and
-confirmation emails. The host-only start URL and OAuth credentials are never
-published. Google Meet and in-person bookings continue to work as before.
+The user-managed General OAuth app handles both visitor Zoom sign-in and a
+separate host authorization. Visitors never become the meeting host. Their Zoom
+identity determines the invitation email; meetings are created using the
+configured host's authorization with `/users/me/meetings`.
 
-## Activate
+## Configure the General app
 
-1. In the [Zoom App Marketplace](https://marketplace.zoom.us/), create a
-   Server-to-Server OAuth app under the account that will host the interviews.
-2. Grant `meeting:write:meeting:admin` (create) and
-   `meeting:delete:meeting:admin` (cleanup), and activate the app. Account admin
-   permission may be required. The configured host must belong to this account.
-3. In the existing Google Apps Script project, open Project Settings → Script
-   Properties and set:
+Use these non-admin granular scopes:
 
-   | Property | Value |
-   | --- | --- |
-   | `ZOOM_ACCOUNT_ID` | Zoom app Account ID |
-   | `ZOOM_CLIENT_ID` | Zoom app Client ID |
-   | `ZOOM_CLIENT_SECRET` | Zoom app Client Secret |
-   | `ZOOM_HOST_USER_ID` | Host's Zoom user ID or Zoom account email |
+- `user:read:user`
+- `meeting:write:meeting`
+- `meeting:delete:meeting`
 
-   Do not put these values in GitHub, browser JavaScript, or chat. The former
-   `ZOOM_JOIN_URL` property is no longer used; a shared link cannot enable Zoom.
-4. Replace `Code.gs` in the existing project with this version. The existing
-   `appsscript.json` already includes external-request permission.
-5. Deploy → Manage deployments → edit the existing web app → New version →
-   Deploy. Keep the existing deployment URL so the website continues to use it.
-6. Verify with two separate Zoom bookings: their join URLs must differ, and
-   each must match its calendar invitation and confirmations. Delete test
-   calendar events and Zoom meetings afterward. Real bookings send invitations.
+Set the exact OAuth redirect URL and allow-list entry to:
 
-Zoom stays disabled in the website's format selector until all four properties
-are present. This checks configuration presence, not credential validity; verify
-the live account before announcing availability. Zoom account meeting-duration
-limits still apply even though the scheduler permits up to three hours.
+`https://script.google.com/macros/s/AKfycbwL6Ai7tqXTs6gc_29alKRTHFxbMTsb1Meg4zW9dizNchMgDtlQ-IYRosy-UNsMWBvoHw/exec`
 
-## Failure behavior and verification
+Set Script Properties `ZOOM_OAUTH_CLIENT_ID` and
+`ZOOM_OAUTH_CLIENT_SECRET` using the same General app environment's credentials.
+Keep `ZOOM_HOST_USER_ID` set to the intended host Zoom email or user ID.
+`ZOOM_OAUTH_REDIRECT_URI` is optional and defaults to the URL above.
 
-Availability and Google identity are checked before Zoom is contacted. Zoom
-creation failure prevents calendar insertion. Calendar insertion failure triggers
-best-effort Zoom cleanup. Creation is not automatically retried after a network
-error because Zoom may already have accepted it. An ambiguous network failure
-can require checking both calendars and Zoom for an orphaned meeting/event.
-Calendar cancellations do not yet automatically delete their Zoom meeting.
+## Deploy and authorize the host
 
-Run `node --test interview-booking/zoom.test.cjs` for mocked booking integration
-checks. These tests send no emails and create no real calendar or Zoom meetings.
+1. Replace the Apps Script project's entire `Code.gs` with this repository's
+   current `interview-booking/Code.gs`. OAuth helpers are already included.
+2. Save. Deploy a new version of the existing public web app, keeping the same
+   URL. Execute the web app as its owner.
+3. In the editor function dropdown, select `authorizeZoomHost` and click Run.
+4. Open the authorization URL printed in the execution log within ten minutes.
+5. Sign in using the account configured in `ZOOM_HOST_USER_ID` and approve
+   the General app. The callback should say “Host Zoom account connected.”
+6. Return to the booking page and refresh. Select Zoom, sign in as an attendee,
+   choose a time, review, and confirm. Verify the actual Zoom meeting and invite.
+7. Test a second slot and compare meeting URLs, then remove test events and meetings.
 
-References: [Zoom authentication](https://developers.zoom.us/docs/internal-apps/s2s-oauth/)
-and [Meetings API](https://developers.zoom.us/docs/api/meetings/).
+The original `ZOOM_ACCOUNT_ID`, `ZOOM_CLIENT_ID`, and `ZOOM_CLIENT_SECRET`
+properties are no longer used by this version. Keep them until the new flow is
+verified. Host refresh credentials are stored under automatically managed
+`ZOOM_OAUTH_HOST_*` properties; do not edit or publish those values.
+
+A General app's development credentials and Local Test availability are for
+permitted test accounts. Public visitor use is subject to Zoom's distribution
+and review requirements. A login restriction from Zoom must be resolved there;
+the website does not bypass it.
+
+## Identity and behavior
+
+Zoom bookings require a server-verified Zoom session. Google identity tokens,
+guest email fields, expired sessions, and sessions with the wrong browser proof
+are rejected for Zoom. Other formats keep the existing Google verification
+until their provider-specific identity integrations are implemented.
+
+Visitor sessions expire after 30 minutes and can expire earlier if Apps Script
+evicts cache entries. Zoom access/refresh tokens are not returned to visitors.
+Only the host's refresh authorization is persisted. The callback validates a
+short-lived, single-use state. The private `authorizeZoomHost` editor function
+creates host states; the public OAuth endpoint only creates visitor states.
+
+Calendar conflicts are checked server-side before meeting creation. A failed
+calendar insertion triggers best-effort meeting cleanup. Network uncertainty
+may require checking Calendar and Zoom manually before retrying. Calendar
+cancellation does not automatically delete the corresponding Zoom meeting.
+
+The website cannot confirm deployment, authorization, or live meeting creation
+merely from configuration flags. Complete the live test above before describing
+the integration as working.
+
+## Tests
+
+- `node --test interview-booking/zoom.test.cjs`
+- `node --test patrick-kruse-portfolio/booking-workflow.test.cjs`
+
+These tests mock external services; they do not create meetings or send invitations.
