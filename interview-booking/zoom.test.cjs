@@ -121,3 +121,26 @@ test('invalid token, rate limiting and unexpected responses have useful safe err
     assert.match(err.message,pattern);assert.match(err.message,/No booking was made/);assert.ok(!err.message.includes('SECRET'));
   }
 });
+
+test('host signing in as a visitor replaces the superseded host token pair',()=>{
+  const h=setup({user:{id:'host-id',email:'host@example.com',display_name:'Host'}});
+  h.host();const {status}=h.login();
+  assert.equal(status.status,'complete');
+  assert.equal(h.props.ZOOM_OAUTH_HOST_ACCESS_TOKEN,'access-private');
+  assert.equal(h.props.ZOOM_OAUTH_HOST_REFRESH_TOKEN,'refresh-private');
+  h.book('Zoom',{zoomSession:status.session,zoomVerifier:h.verifier});
+  const call=h.calls.find(c=>c.url.endsWith('/users/me/meetings'));
+  assert.equal(call.opts.headers.Authorization,'Bearer access-private');
+});
+test('another visitor cannot replace an existing host token pair',()=>{
+  const h=setup();h.host();h.login();
+  assert.equal(h.props.ZOOM_OAUTH_HOST_ID,'host-id');
+  assert.equal(h.props.ZOOM_OAUTH_HOST_ACCESS_TOKEN,'host-access');
+  assert.equal(h.props.ZOOM_OAUTH_HOST_REFRESH_TOKEN,'host-refresh');
+});
+test('host email alone cannot establish a host connection through visitor login',()=>{
+  const h=setup({user:{id:'host-id',email:'host@example.com',display_name:'Host'}});
+  assert.equal(h.login().status.status,'complete');
+  assert.equal(h.props.ZOOM_OAUTH_HOST_ID,undefined);
+  assert.equal(h.props.ZOOM_OAUTH_HOST_REFRESH_TOKEN,undefined);
+});
