@@ -108,3 +108,16 @@ test('public OAuth start cannot request host authorization',()=>{
   const h=setup();const result=h.ctx.doGet({parameter:{auth:'zoom-start',challenge:h.challenge,kind:'host'}});
   const flow=JSON.parse(result.text),saved=JSON.parse(h.cache.get('zoom-flow:'+flow.state).v);assert.equal(saved.kind,'visitor');
 });
+
+test('missing create permission reports scope fix and safe diagnostic codes',()=>{
+  const h=setup();
+  const err=h.ctx.zoomMeetingFailure({getResponseCode:()=>400,getContentText:()=>JSON.stringify({code:4711,message:'Invalid access token SECRET does not contain scopes:[meeting:write:meeting]'})});
+  assert.match(err.message,/HTTP 400, Zoom code 4711/);assert.match(err.message,/meeting:write:meeting/);assert.ok(!err.message.includes('SECRET'));
+});
+test('invalid token, rate limiting and unexpected responses have useful safe errors',()=>{
+  const h=setup();
+  for(const [status,body,pattern] of [[401,'{"code":124}',/authorizeZoomHost/],[429,'{}',/try again later/],[502,'<html>SECRET<\/html>',/HTTP 502/]]){
+    const err=h.ctx.zoomMeetingFailure({getResponseCode:()=>status,getContentText:()=>body});
+    assert.match(err.message,pattern);assert.match(err.message,/No booking was made/);assert.ok(!err.message.includes('SECRET'));
+  }
+});
