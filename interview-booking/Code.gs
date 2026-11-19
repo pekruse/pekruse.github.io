@@ -143,6 +143,29 @@ function zoomBookingIdentity(input) {
 function zoomConfiguration() { return zoomHostReady()?{host:'me'}:null; }
 function zoomAccessToken() { return zoomHostAccessToken(); }
 
+
+function zoomMeetingFailure(response) {
+  const status=Number(response.getResponseCode());
+  let body={};
+  try { body=JSON.parse(response.getContentText()); } catch (_) {}
+  const numericCode=Number(body.code);
+  const code=body.code!==undefined&&Number.isFinite(numericCode)?numericCode:null;
+  const message=typeof body.message==='string'?body.message:'';
+  let hint='Please contact Patrick so the host account settings can be checked.';
+  if(code===4711||/does not contain scopes|missing scope|insufficient scope/i.test(message))
+    hint='The host authorization is missing meeting-creation permission. Patrick must add meeting:write:meeting to the Zoom app and run authorizeZoomHost again.';
+  else if(status===401||code===124)
+    hint='The host Zoom authorization is no longer valid. Patrick must run authorizeZoomHost again.';
+  else if(status===429)
+    hint='Zoom has temporarily limited meeting creation. Please try again later.';
+  else if(status===403)
+    hint='Zoom denied meeting creation for the host. Patrick must check the app permissions and host account restrictions.';
+  const reference='HTTP '+status+(code!==null?', Zoom code '+code:'');
+  // Log only diagnostic codes, never the response body, credentials or meeting links.
+  console.error('Zoom meeting creation rejected: '+reference);
+  return new Error('Zoom could not create the meeting ('+reference+'). '+hint+' No booking was made.');
+}
+
 function createBookingZoom(from, duration) {
   const config = zoomConfiguration();
   if (!config) throw new Error('Zoom is not available yet. Choose another meeting format.');
@@ -156,7 +179,7 @@ function createBookingZoom(from, duration) {
       settings:{use_pmi:false,waiting_room:true,join_before_host:false}}),
     muteHttpExceptions:true
   });
-  if (response.getResponseCode() !== 201) throw new Error('A Zoom meeting could not be created. No booking was made. Please try another meeting format.');
+  if (response.getResponseCode() !== 201) throw zoomMeetingFailure(response);
   const meeting = JSON.parse(response.getContentText());
   const id = String(meeting.id || '');
   const join = meeting.join_url;
