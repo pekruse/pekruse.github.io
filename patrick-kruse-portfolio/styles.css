@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
 :root{color-scheme:light;--bg:#f5f6f7;--surface:#fff;--surface-2:#eaf0f6;--text:#192735;--muted:#526475;--line:#d5dee6;--accent:#215f9a;--accent-text:#fff;--visual:#eaf1f7;--green:#277751}
 @media(prefers-color-scheme:dark){:root:not([data-theme=light]){color-scheme:dark;--bg:#0e141b;--surface:#141e28;--surface-2:#1c2a37;--text:#e5ecf3;--muted:#a0b1c1;--line:#2d3c4b;--accent:#8cbef1;--accent-text:#0e1a26;--visual:#182938;--green:#83cea5}}
 :root[data-theme=dark]{color-scheme:dark;--bg:#0e141b;--surface:#141e28;--surface-2:#1c2a37;--text:#e5ecf3;--muted:#a0b1c1;--line:#2d3c4b;--accent:#8cbef1;--accent-text:#0e1a26;--visual:#182938;--green:#83cea5}
@@ -44,6 +44,6 @@
 .credential-icon{width:64px;height:48px;margin-top:auto;color:var(--accent)}
 
 /* Consistent interview booking link styling across portfolio pages. */
-a:is([href$="self-interview.html#schedule"],[href="#schedule"]){font-weight:700;color:#000}
-:root[data-theme=dark] a:is([href$="self-interview.html#schedule"],[href="#schedule"]){color:#fff}
-@media(prefers-color-scheme:dark){:root:not([data-theme=light]) a:is([href$="self-interview.html#schedule"],[href="#schedule"]){color:#fff}}
+a.schedule-link{font-weight:700;color:#000}
+:root[data-theme=dark] a.schedule-link{color:#fff}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]) a.schedule-link{color:#fff}}
