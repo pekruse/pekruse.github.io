@@ -188,7 +188,7 @@ function createBookingZoom(from, duration) {
     method:'post',contentType:'application/json',
     headers:{Authorization:'Bearer '+token},
     payload:JSON.stringify({topic:'Interview with Patrick Kruse',type:2,
-      start_time:from.toISOString(),duration,timezone:ZONE,
+      start_time:Utilities.formatDate(from,ZONE,"yyyy-MM-dd'T'HH:mm:ss"),duration,timezone:ZONE,
       settings:{use_pmi:false,waiting_room:true,join_before_host:false}}),
     muteHttpExceptions:true
   });
@@ -199,6 +199,14 @@ function createBookingZoom(from, duration) {
   if (!/^\d+$/.test(id) || typeof join !== 'string' || !/^https:\/\/(?:[a-z0-9-]+\.)*zoom\.(?:us|com)\/j\/\d+(?:\?[^\s<>"']*)?$/i.test(join)) {
     if (/^\d+$/.test(id)) removeBookingZoom({id,token});
     throw new Error('Zoom did not return valid joining details. No booking was made.');
+  }
+  // Verify Zoom's returned UTC time rather than trusting a successful HTTP response.
+  if(meeting.start_time){
+    const returned=Date.parse(meeting.start_time);
+    if(!Number.isFinite(returned)||Math.abs(returned-from.getTime())>1000){
+      removeBookingZoom({id,token});
+      throw new Error('Zoom returned a different meeting time. The meeting was removed and no new booking was confirmed. Please contact Patrick.');
+    }
   }
   // The host-only start_url must never be included in attendee messages.
   return {id,join,token};
