@@ -360,12 +360,24 @@ function reserve(input) {
       'Booked by: '+email,
       Utilities.formatDate(from,ZONE,'EEEE, MMMM d, yyyy'),
       Utilities.formatDate(from,ZONE,'h:mm a')+' – '+Utilities.formatDate(to,ZONE,'h:mm a z')+' ('+(end-start)+' minutes)',
-      phoneCall ? 'Phone call: Patrick will call '+phone : teamsCall ? 'Microsoft Teams: '+teamsDetails : physical ? 'In person: '+address : zoom ? 'Zoom: '+zoom : 'Google Meet: '+(booked.hangoutLink || 'See the Calendar invitation for joining details.'),
-      booked.htmlLink
+      phoneCall ? 'Phone call: Patrick will call '+phone : teamsCall ? 'Microsoft Teams: '+teamsDetails : physical ? 'In person: '+address : zoom ? 'Join Zoom meeting: '+zoom : 'Join Google Meet: '+(booked.hangoutLink || 'See the Calendar invitation for joining details.'),
+      'View calendar event: '+booked.htmlLink
     ].join('\n');
+    const escapeEmail=value=>String(value||'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    const meetingLink=zoom||(!physical&&!phoneCall&&!teamsCall?booked.hangoutLink:teams)||'';
+    const meetingLabel=zoom?'Join Zoom meeting':teamsCall?'Join Microsoft Teams meeting':'Join Google Meet';
+    const htmlBody='<div style="font:16px/1.6 Arial,sans-serif;max-width:560px">'
+      +'<h2>Interview confirmed</h2>'
+      +'<p><strong>Date:</strong> '+escapeEmail(Utilities.formatDate(from,ZONE,'EEEE, MMMM d, yyyy'))+'<br>'
+      +'<strong>Time:</strong> '+escapeEmail(Utilities.formatDate(from,ZONE,'h:mm a')+' – '+Utilities.formatDate(to,ZONE,'h:mm a z'))+'<br>'
+      +'<strong>Meeting format:</strong> '+escapeEmail(input.format)+'<br>'
+      +'<strong>Booked by:</strong> '+escapeEmail(email)+'</p>'
+      +(meetingLink?'<p><a href="'+escapeEmail(meetingLink)+'" style="font-weight:bold">'+meetingLabel+'</a></p>':'')
+      +(phoneCall?'<p>Patrick will call '+escapeEmail(phone)+'.</p>':physical?'<p><strong>Meeting address:</strong> '+escapeEmail(address)+'</p>':teamsCall&&!teams?'<p>'+escapeEmail(teamsDetails)+'</p>':'')
+      +'<p><a href="'+escapeEmail(booked.htmlLink)+'">View calendar event</a></p></div>';
     for (const recipient of new Set([CALENDAR_ID.toLowerCase(),email.toLowerCase()])) {
       try {
-        MailApp.sendEmail(recipient,subject,details);
+        MailApp.sendEmail(recipient,subject,details,{htmlBody});
       } catch (error) {
         console.error('Confirmation email failed for event '+booked.id+' ('+(recipient===CALENDAR_ID.toLowerCase()?'organizer':'guest')+'): '+error.message);
       }
