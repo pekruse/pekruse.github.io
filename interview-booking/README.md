@@ -61,8 +61,8 @@ creates host states; the public OAuth endpoint only creates visitor states.
 
 Calendar conflicts are checked server-side before meeting creation. A failed
 calendar insertion triggers best-effort meeting cleanup. Network uncertainty
-may require checking Calendar and Zoom manually before retrying. Calendar
-cancellation does not automatically delete the corresponding Zoom meeting.
+may require checking Calendar and Zoom manually before retrying. Deleting or declining a Calendar invitation outside the management page does not
+trigger Zoom cleanup. Use the private website management link for coordinated cancellation.
 
 The website cannot confirm deployment, authorization, or live meeting creation
 merely from configuration flags. Complete the live test above before describing
@@ -74,3 +74,38 @@ the integration as working.
 - `node --test patrick-kruse-portfolio/booking-workflow.test.cjs`
 
 These tests mock external services; they do not create meetings or send invitations.
+
+## Website management links
+
+New confirmations include a clearly labeled **Manage booking — edit or cancel**
+link to `patrick-kruse-portfolio/manage-booking.html`. Deploy the latest single
+`Code.gs` file to the existing Apps Script deployment to enable the endpoints.
+There are no new manual Script Properties and no additional Zoom scopes beyond
+the existing create/delete scopes.
+
+The URL fragment contains the event ID and an HMAC signature. Treat the full link
+as a private capability: anyone holding it can read, edit or cancel that booking.
+The page does not require another provider login. Links are not added retroactively
+to previously sent emails. `BOOKING_MANAGEMENT_SECRET` is created once in private
+Script Properties. Preserve it; replacing it invalidates outstanding links.
+
+- Guests may repick a future Tuesday/Thursday, time and meeting format, and edit
+  the address, phone or Teams link. The invitation email stays unchanged.
+- Availability excludes the guest's own event and is checked again while saving.
+- A rescheduled Zoom booking gets a new meeting; the old Zoom meeting is removed.
+  This uses create/delete permissions and does not require a Zoom update scope.
+- Cancellation deletes the Zoom meeting first, then removes the calendar event
+  with attendee notifications. Failure leaves a durable retry marker; the page
+  never reports complete cancellation until both operations finish.
+- Updated and cancelled confirmations go to the guest and organizer.
+- Management actions use POST, validate the private signature and event ownership
+  marker, serialize with other app changes, and reject outdated event versions.
+  Opening an email link or fetching a page never mutates the booking.
+- If Zoom cleanup fails after a saved edit, the page displays a warning and stores
+  the old meeting ID for retry rather than silently losing it.
+- A network timeout can leave the result uncertain. Reload to check status before
+  retrying; do not automatically repeat meeting creation.
+
+Also run `node --test patrick-kruse-portfolio/manage-booking.test.cjs`.
+Tests use mocked Calendar, Zoom and email services. Live edit/cancel verification
+must follow the Apps Script redeployment; no live meetings were changed in tests.

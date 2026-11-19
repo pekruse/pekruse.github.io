@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><meta name="robots" content="noindex,nofollow"><title>Manage booking | Patrick Kruse</title><link rel="icon" href="favicon.svg?v=pk-chip"><link rel="stylesheet" href="styles.css?v=interview-links-2">
+<script>try{const t=localStorage.getItem('pk-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch{}</script>
+<style>
+body{min-height:100vh}main.manage{max-width:760px;margin:clamp(24px,6vw,64px) auto;padding:0 20px}.manage .sheet{padding:clamp(20px,4vw,36px);border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.manage h1{font-size:clamp(28px,5vw,40px);margin:16px 0}.manage p{line-height:1.6}.manage dl{display:grid;grid-template-columns:auto 1fr;gap:8px 20px}.manage dd{margin:0;overflow-wrap:anywhere}.manage dt{color:var(--muted)}
+.manage form{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:24px}.manage label{display:grid;gap:8px;align-content:start}.manage input,.manage select,.manage button{font:inherit;padding:12px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:inherit;min-height:44px}.manage button{cursor:pointer}.manage button:disabled{opacity:.55;cursor:wait}.manage .primary{background:#0b5cff;color:#fff;border-color:#0b5cff;font-weight:600}.manage .wide{grid-column:1/-1}
+.manage .actions,.manage .openings{display:flex;gap:12px;flex-wrap:wrap;align-items:center}.manage .openings{margin-top:10px}.manage .danger{color:#c13636;border-color:currentColor}.manage .cancel-area{margin-top:32px;padding-top:24px;border-top:1px solid var(--line)}.manage [hidden]{display:none!important}#manage-status{min-height:26px;overflow-wrap:anywhere}#manage-status[data-error=true]{color:#c13636}.manage a{overflow-wrap:anywhere}
+dialog{width:min(26rem,calc(100vw - 2rem));box-sizing:border-box;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:inherit;padding:24px}dialog::backdrop{background:#0007}dialog button{font:inherit;padding:12px;border:1px solid var(--line);border-radius:6px;cursor:pointer}dialog .actions{display:flex;flex-wrap:wrap;gap:12px}dialog p{line-height:1.6}
+@media(max-width:520px){.manage form{grid-template-columns:1fr}.manage dl{grid-template-columns:1fr;gap:4px}.manage dd{margin-bottom:10px}.manage .actions button{width:100%}}
+</style><script src="manage-booking.js?v=management-1" defer></script></head>
+<body><main class="manage"><a href="./">Patrick Kruse</a><h1>Manage your booking</h1><p>Change your plans here. All times are Eastern.</p>
+<section class="sheet" aria-label="Your booking"><p id="manage-status" role="status" aria-live="polite">Loading your booking…</p>
+<div id="booking-content" hidden><h2>Current booking</h2><dl id="booking-summary"></dl><p id="booking-links"></p>
+<form id="manage-form"><h2 class="wide">Edit booking</h2>
+<label>Date<input id="manage-date" name="date" type="date" required></label>
+<label>Meeting format<select name="format"><option>Zoom</option><option>Microsoft Teams</option><option>Google Meet</option><option>In person</option><option>Phone call</option></select></label>
+<div class="wide"><strong>Available times</strong><div id="manage-openings" class="openings" aria-live="polite"></div><small>Your current booking does not block its own time.</small></div>
+<label>Start time (Eastern)<input name="start" type="time" min="14:00" max="16:59" required></label>
+<label>End time (Eastern)<input name="end" type="time" min="14:01" max="17:00" required></label>
+<label class="wide" id="manage-address" hidden>Meeting address<input name="address" autocomplete="street-address" maxlength="300"></label>
+<label class="wide" id="manage-phone" hidden>Phone number<input name="phone" type="tel" autocomplete="tel" maxlength="40" placeholder="+1 555 123 4567"></label>
+<label class="wide" id="manage-teams" hidden>Microsoft Teams link (optional)<input name="teams" type="url" maxlength="1000" placeholder="https://teams.microsoft.com/…"><small>Leave blank for Patrick to email joining details separately.</small></label>
+<div class="wide actions"><button class="primary" type="submit" id="manage-save">Review changes</button><button type="button" id="manage-reload">Reload booking</button></div>
+</form><div class="cancel-area" id="cancel-area"><h2>Need to cancel?</h2><p>Cancelling removes this reservation and its Zoom meeting, if applicable.</p><button type="button" class="danger" id="manage-cancel">Cancel booking</button></div></div>
+<p><a href="self-interview.html#schedule">Back to scheduling</a></p></section>
+<dialog id="manage-confirm" aria-labelledby="manage-confirm-title"><h2 id="manage-confirm-title"></h2><p id="manage-confirm-detail"></p><div class="actions"><button type="button" id="manage-confirm-yes">Confirm</button><button type="button" id="manage-confirm-no">Go back</button></div></dialog>
+</main></body></html>
