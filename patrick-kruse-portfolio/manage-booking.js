@@ -5,7 +5,7 @@
   let booking=null,busy=false,availability=[],availabilityVersion=0,reviewed=null;
   // Keep the private link out of referrers and network URLs. Never log it.
   function message(text,error=false){status.textContent=text;status.dataset.error=String(error);}
-  function controls(disabled){busy=disabled;for(const el of document.querySelectorAll('button,input,select'))el.disabled=disabled;}
+  function controls(disabled){busy=disabled;for(const el of document.querySelectorAll('button,input,select'))el.disabled=disabled;updateSaveState();}
   function minutes(value){return Number(value.slice(0,2))*60+Number(value.slice(3));}
   function time(value){return String(Math.floor(value/60)).padStart(2,'0')+':'+String(value%60).padStart(2,'0');}
   function readable(value){const n=minutes(value);return (Math.floor(n/60)%12||12)+':'+String(n%60).padStart(2,'0')+' PM';}
@@ -23,6 +23,7 @@
     for(const [name,value] of [['address','In person'],['phone','Phone call'],['teams','Microsoft Teams']]){
       const active=format===value;get('manage-'+name).hidden=!active;fields[name].disabled=!active;fields[name].required=active&&name!=='teams';
     }
+    updateSaveState();
   }
   function render(){
     get('booking-content').hidden=!booking||booking.status==='cancelled';
@@ -53,7 +54,7 @@
       if(!availability.length){box.textContent='No openings on this date. Choose another Tuesday or Thursday.';return;}
       for(const opening of availability){
         const button=document.createElement('button');button.type='button';button.textContent=readable(opening.start)+' – '+readable(opening.end);button.disabled=busy;
-        button.addEventListener('click',()=>{fields.start.value=opening.start;fields.end.value=time(Math.min(minutes(opening.end),minutes(opening.start)+30));});box.append(button);
+        button.addEventListener('click',()=>{fields.start.value=opening.start;fields.end.value=time(Math.min(minutes(opening.end),minutes(opening.start)+30));updateSaveState();});box.append(button);
       }
     }catch(error){if(version===availabilityVersion)box.textContent=error.message;}
   }
@@ -64,9 +65,23 @@
     finally{controls(false);if(booking?.status==='confirmed')details();}
     if(booking?.editable)await loadOpenings();
   }
-  function snapshot(){return Object.fromEntries(['date','start','end','format','address','phone','teams'].map(name=>[name,fields[name].disabled?'':fields[name].value]));}
+  function selection(value){
+    const format=String(value.format||'').trim();
+    return {date:String(value.date||''),start:String(value.start||''),end:String(value.end||''),format,
+      address:format==='In person'?String(value.address||'').trim():'',
+      phone:format==='Phone call'?String(value.phone||'').trim():'',
+      teams:format==='Microsoft Teams'?String(value.teams||'').trim():''};
+  }
+  function snapshot(){return selection(Object.fromEntries(['date','start','end','format','address','phone','teams'].map(name=>[name,fields[name].value])));}
+  function changed(){return Boolean(booking&&JSON.stringify(snapshot())!==JSON.stringify(selection(booking)));}
+  function updateSaveState(){
+    const retry=Boolean(booking?.cleanupPending&&!changed());
+    get('manage-save').disabled=busy||!booking?.editable||(!changed()&&!retry);
+    get('manage-save').textContent=retry?'Retry cleanup':'Review changes';
+  }
   form.addEventListener('submit',event=>{
     event.preventDefault();if(busy||!booking?.editable||!form.reportValidity())return;
+    if(!changed()&&!booking.cleanupPending){message('No changes to save. Your booking is already up to date.');updateSaveState();return;}
     const selected=snapshot();
     if(!availability.some(o=>o.start<=selected.start&&selected.start<selected.end&&selected.end<=o.end)){message('Choose a time within one available opening.',true);return;}
     reviewed={...selected,version:booking.version,action:'save'};
@@ -84,7 +99,7 @@
     if(busy||!reviewed)return;const current=reviewed;reviewed=null;dialog.close();controls(true);message(current.action==='cancel'?'Cancelling your booking…':'Saving your changes…');
     try{
       const result=await request(current.action,current);booking=result.booking;render();
-      message(result.warning||(booking.status==='cancelled'?'Your booking is cancelled. A confirmation has been sent.':'Your changes are saved. Check your email for the updated details.'),!!result.warning);
+      message(result.warning||(booking.status==='cancelled'?'Your booking is cancelled. A confirmation has been sent.':result.unchanged?'Your booking is already up to date. No new confirmation email was sent.':'Your changes are saved. Check your email for the updated details.'),!!result.warning);
     }catch(error){
       message(error.name==='AbortError'?'The request timed out. Reload this page to check whether your change was saved before retrying.':error.message,true);
       // Refresh the version after partial failures, but never silently repeat a mutation.
@@ -93,6 +108,7 @@
     if(booking?.editable)await loadOpenings();
   });
   get('manage-reload').addEventListener('click',()=>{if(!busy)load();});
+  form.addEventListener('input',updateSaveState);form.addEventListener('change',updateSaveState);
   fields.date.addEventListener('change',loadOpenings);fields.format.addEventListener('change',details);
   window.addEventListener('pageshow',event=>{if(event.persisted)load();});
   if(!/^[a-v0-9]{5,1024}$/.test(credentials.id)||!/^[a-f0-9]{64}$/.test(credentials.key)){

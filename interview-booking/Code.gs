@@ -495,6 +495,17 @@ function bookingNotify(event,action) {
   }
   return warning;
 }
+function bookingSameSelection(current,input) {
+  const normalize=value=>{
+    const format=String(value.format||'').trim();
+    return [String(value.date||''),String(value.start||''),String(value.end||''),format,
+      format==='In person'?String(value.address||'').trim():'',
+      format==='Phone call'?String(value.phone||'').trim():'',
+      format==='Microsoft Teams'?String(value.teams||'').trim():''];
+  };
+  return JSON.stringify(normalize(current))===JSON.stringify(normalize(input));
+}
+
 function manageBooking(input) {
   const action=String(input.management||'');
   if(!['read','windows','save','cancel'].includes(action))throw Error('Unknown booking action.');
@@ -513,6 +524,17 @@ function manageBooking(input) {
         if(cursor<a)gaps.push([cursor,Math.min(a,+to)]);cursor=Math.max(cursor,b);
       }
       return {openings:gaps.filter(([a,b])=>a<b).map(([a,b])=>({start:Utilities.formatDate(new Date(a),ZONE,'HH:mm'),end:Utilities.formatDate(new Date(b),ZONE,'HH:mm')}))};
+    }
+    // Idempotent even if a browser retries the last successful save with an old version.
+    // An unchanged booking must not recreate Zoom, update Calendar or send email.
+    if(action==='save'&&bookingSameSelection(snapshot,input)){
+      if(snapshot.cancellationPending)throw Error('Cancellation is in progress. Reload and finish cancelling this booking.');
+      let warning='';
+      if(snapshot.cleanupPending){
+        try{event=bookingClearOldZoom(event);}
+        catch(_){warning='The previous Zoom link could not be removed yet. Retry cleanup or contact Patrick.';}
+      }
+      return {booking:bookingPublic(event),unchanged:true,warning};
     }
     if(input.version!==event.etag)throw Error('This booking changed in another tab. Reload it before making another change.');
     if(+new Date(event.start.dateTime)<=Date.now()&&!(action==='cancel'&&event.extendedProperties.private.bookingCancellationPending==='1'))throw Error('This meeting has already started. Please contact Patrick.');

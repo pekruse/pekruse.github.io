@@ -49,3 +49,18 @@ test('range outside an opening cannot reach confirmation or save',async()=>{
  const h=await setup();h.form.elements.start.value='13:00';await h.form.emit('submit');
  assert.equal(h.get('manage-confirm').open,false);assert.ok(!h.calls.some(c=>c.action==='save'));assert.match(h.get('manage-status').textContent,/available opening/);
 });
+
+test('save is disabled until a real edit and disabled again when edit is undone',async()=>{
+  const h=await setup();assert.equal(h.get('manage-save').disabled,true);
+  h.form.elements.start.value='15:00';await h.form.emit('input');assert.equal(h.get('manage-save').disabled,false);
+  h.form.elements.start.value='14:00';await h.form.emit('input');assert.equal(h.get('manage-save').disabled,true);
+});
+test('unchanged form cannot open confirmation or send a save request',async()=>{
+  const h=await setup();await h.form.emit('submit');assert.equal(h.get('manage-confirm').open,false);
+  assert.ok(!h.calls.some(c=>c.action==='save'));assert.match(h.get('manage-status').textContent,/No changes/);
+});
+test('successful edit disables save until another genuine change',async()=>{
+  const h=await setup();h.form.elements.start.value='15:00';h.form.elements.end.value='15:30';
+  await h.form.emit('input');await h.form.emit('submit');await h.get('manage-confirm-yes').emit('click');
+  assert.equal(h.get('manage-save').disabled,true);await h.form.emit('submit');assert.equal(h.calls.filter(c=>c.action==='save').length,1);
+});

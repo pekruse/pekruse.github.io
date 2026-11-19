@@ -234,3 +234,34 @@ test('public POST management errors remain JSON without performing a mutation',(
   const h=managed(),result=h.ctx.doPost({parameter:{management:'cancel',id:h.credentials.id,key:'0'.repeat(64)}});
   assert.match(JSON.parse(result.text).error,/invalid/);assert.equal(h.read().booking.status,'confirmed');
 });
+
+test('unchanged save performs no Zoom, Calendar or email mutations',()=>{
+  const h=managed(),current=h.read().booking,emailCount=h.emails.length,callCount=h.calls.length;
+  const result=h.call('save',{...current,version:'old-browser-version'});
+  assert.equal(result.unchanged,true);assert.equal(h.emails.length,emailCount);assert.equal(h.calls.length,callCount);
+  assert.equal(h.read().booking.version,current.version);
+});
+test('replaying an already saved selection with its old version does not email again',()=>{
+  const h=managed(),version=h.read().booking.version;
+  const input={version,date:'2026-11-26',start:'15:00',end:'15:30',format:'Zoom'};
+  h.call('save',input);const emails=h.emails.length,calls=h.calls.length,updatedVersion=h.read().booking.version;
+  for(let i=0;i<3;i++)assert.equal(h.call('save',input).unchanged,true);
+  assert.equal(h.emails.length,emails);assert.equal(h.calls.length,calls);assert.equal(h.read().booking.version,updatedVersion);
+});
+test('irrelevant fields and whitespace do not produce duplicate updates',()=>{
+  const h=managed(),current=h.read().booking,count=h.emails.length;
+  assert.equal(h.call('save',{...current,address:'unused',phone:'unused',teams:'unused'}).unchanged,true);
+  const updated=h.call('save',{date:'2026-11-26',start:'15:00',end:'15:30',format:'In person',address:'Main Library'});
+  const emails=h.emails.length;
+  assert.equal(h.call('save',{...updated.booking,address:'  Main Library  '}).unchanged,true);
+  assert.equal(h.emails.length,emails);assert.ok(emails>count);
+});
+test('cleanup retry on unchanged booking never recreates a meeting or emails again',()=>{
+  const h=managed({deleteFail:true});
+  const updated=h.call('save',{date:'2026-11-26',start:'15:00',end:'15:30',format:'Zoom'});
+  assert.equal(updated.booking.cleanupPending,true);
+  const count=h.emails.length,creates=h.calls.filter(c=>c.url.endsWith('/users/me/meetings')).length;
+  const retry=h.call('save',updated.booking);
+  assert.equal(retry.unchanged,true);assert.ok(retry.warning);assert.equal(h.emails.length,count);
+  assert.equal(h.calls.filter(c=>c.url.endsWith('/users/me/meetings')).length,creates);
+});
