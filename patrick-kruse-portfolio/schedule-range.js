@@ -53,8 +53,9 @@
     if(!date||date<jump.min||date>jump.max){selection();return}
     fields.date.value=jump.value=date;
     const n=Math.floor((stamp(date)-monday)/(7*day));
-    if(n!==week){loadWeek(n);return}
+    if(n!==week){form.dispatchEvent(new Event('input',{bubbles:true}));loadWeek(n);return}
     const first=gaps(date)[0]; fields.start.value=format(first?.start??840);fields.end.value=format(first?Math.min(first.start+30,first.end):870);render();
+    form.dispatchEvent(new Event('input',{bubbles:true}));
   }
   const cache=new Map();
   function getWindows(n,refresh=false){
@@ -126,7 +127,7 @@
         const data=await getWindows(w);
         const match=data.openings.find(o=>o.date>from||(o.date===from&&(!Number.isFinite(after)||o.start>after||!gaps(from).some(g=>g.start<=after&&after<g.end)&&o.start===after)));
         if(match){fields.date.value=jump.value=match.date;if(week!==w||!openings)await loadWeek(w);else choose(match.date);
-          fields.start.value=format(match.start);fields.end.value=format(Math.min(match.end,match.start+30));selection();status.textContent='';return}
+          fields.start.value=format(match.start);fields.end.value=format(Math.min(match.end,match.start+30));form.dispatchEvent(new Event('input',{bubbles:true}));status.textContent='';return}
       }
       status.textContent='No later openings in the booking window.';
     }catch{status.textContent='Could not check the calendar. Try again.'}finally{button.disabled=false}
@@ -147,7 +148,8 @@
   for(const slider of [start,end])slider.oninput=()=>{
     if(slider===start)start.value=Math.min(+start.value,+end.value-5);
     else end.value=Math.max(+end.value,+start.value+5);
-    fields.start.value=format(+start.value);fields.end.value=format(+end.value);selection();
+    fields.start.value=format(+start.value);fields.end.value=format(+end.value);
+    form.dispatchEvent(new Event('input',{bubbles:true}));
   };
   form.addEventListener('input',selection);form.addEventListener('signin',selection);
   form.addEventListener('submit',e=>{selection();if(!form.reportValidity())e.preventDefault()});
