@@ -101,11 +101,24 @@ function zoomOAuthCallback(params) {
     } finally {lock.releaseLock();}
     if(params.error)throw Error('Zoom sign-in was canceled. Return to your booking to try again.');
     if(typeof params.code!=='string'||!params.code||params.code.length>4096)throw Error('Zoom returned no authorization code.');
-    const token=zoomTokenRequest({grant_type:'authorization_code',code:params.code,redirect_uri:zoomOAuthConfig().redirect});
-    const user=zoomProfile(token.access_token);
+    // Serialize code exchange and host token updates with booking/refresh.
+    // Zoom can invalidate the previous pair when the same user authorizes again.
+    let token,user;
+    const tokenLock=LockService.getScriptLock();tokenLock.waitLock(10000);
+    try {
+      token=zoomTokenRequest({grant_type:'authorization_code',code:params.code,redirect_uri:zoomOAuthConfig().redirect});
+      user=zoomProfile(token.access_token);
+      if(flow.kind==='host'){
+        zoomStoreHost(token,user);
+      }else{
+        const p=PropertiesService.getScriptProperties();
+        // Only maintain an existing host connection for that exact Zoom user ID.
+        // Public visitor login must never establish or replace the host identity.
+        if(zoomHostReady()&&user.id===p.getProperty('ZOOM_OAUTH_HOST_ID'))
+          zoomStoreHost(token,user);
+      }
+    } finally {tokenLock.releaseLock();}
     if(flow.kind==='host'){
-      const hostLock=LockService.getScriptLock();hostLock.waitLock(10000);
-      try{zoomStoreHost(token,user);}finally{hostLock.releaseLock();}
       heading='Host Zoom account connected.';detail='You can close this tab and return to Apps Script. The new app can now create meetings under your host account.';
     }else{
       const ticket=zoomRandom(),expiresAt=Date.now()+1800000;
