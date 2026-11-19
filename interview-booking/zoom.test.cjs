@@ -21,6 +21,7 @@ function setup(options={}){
         const part=k=>parts.find(p=>p.type===k).value;
         if(f==='yyyy-MM-dd')return part('year')+'-'+part('month')+'-'+part('day');
         if(f==='HH:mm')return part('hour')+':'+part('minute');
+        if(f==="yyyy-MM-dd'T'HH:mm:ss")return part('year')+'-'+part('month')+'-'+part('day')+'T'+part('hour')+':'+part('minute')+':00';
         if(f==='EEE')return new Intl.DateTimeFormat('en-US',{timeZone:z,weekday:'short'}).format(d);
         return new Intl.DateTimeFormat('en-US',{timeZone:z,dateStyle:'full',timeStyle:'short'}).format(d);
       }},
@@ -32,7 +33,7 @@ function setup(options={}){
       if(url.endsWith('/oauth/token'))return response(options.tokenFail?401:200,{access_token:'access-private',refresh_token:'refresh-private',expires_in:3600});
       if(url.endsWith('/users/me'))return response(200,user);
       if(opts.method==='delete')return response(options.deleteFail?403:204,{});
-      if(url.endsWith('/users/me/meetings'))return response(options.createFail?429:201,{id:++meetingId,join_url:options.badJoin?'https://evil.example/meeting':'https://zoom.us/j/123456789',start_url:'host-start-private'});
+      if(url.endsWith('/users/me/meetings'))return response(options.createFail?429:201,{id:++meetingId,...(options.zoomStartTime?{start_time:options.zoomStartTime}:{}),join_url:options.badJoin?'https://evil.example/meeting':'https://zoom.us/j/123456789',start_url:'host-start-private'});
       throw Error('Unexpected fetch '+url);
     }},
     Calendar:{Freebusy:{query:()=>({calendars:{'pekruse504@gmail.com':{busy:options.busy?[{}]:[]}}})},Events:{
@@ -264,4 +265,22 @@ test('cleanup retry on unchanged booking never recreates a meeting or emails aga
   const retry=h.call('save',updated.booking);
   assert.equal(retry.unchanged,true);assert.ok(retry.warning);assert.equal(h.emails.length,count);
   assert.equal(h.calls.filter(c=>c.url.endsWith('/users/me/meetings')).length,creates);
+});
+
+test('Zoom uses local Eastern time with no fractional UTC timestamp in winter',()=>{
+  const h=setup({zoomStartTime:'2026-11-24T19:00:00Z'});h.host();
+  h.ctx.createBookingZoom(new Date('2026-11-24T19:00:00Z'),30);
+  const body=JSON.parse(h.calls.find(c=>c.url.endsWith('/users/me/meetings')).opts.payload);
+  assert.equal(body.start_time,'2026-11-24T14:00:00');assert.equal(body.timezone,'America/New_York');
+});
+test('Zoom local Eastern time also accounts for daylight saving time',()=>{
+  const h=setup({zoomStartTime:'2027-06-15T18:00:00Z'});h.host();
+  h.ctx.createBookingZoom(new Date('2027-06-15T18:00:00Z'),30);
+  const body=JSON.parse(h.calls.find(c=>c.url.endsWith('/users/me/meetings')).opts.payload);
+  assert.equal(body.start_time,'2027-06-15T14:00:00');assert.equal(body.timezone,'America/New_York');
+});
+test('a mismatched Zoom scheduled time is cleaned up and never confirmed',()=>{
+  const h=setup({zoomStartTime:'2026-11-25T00:00:00Z'});h.host();const {status}=h.login();
+  assert.throws(()=>h.book('Zoom',{zoomSession:status.session,zoomVerifier:h.verifier}),/different meeting time/);
+  assert.equal(h.events.length,0);assert.equal(h.emails.length,0);assert.ok(h.calls.some(c=>c.opts.method==='delete'));
 });
