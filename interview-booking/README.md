@@ -62,8 +62,10 @@ creates host states; the public OAuth endpoint only creates visitor states.
 
 Calendar conflicts are checked server-side before meeting creation. A failed
 calendar insertion triggers best-effort meeting cleanup. Network uncertainty
-may require checking Calendar and Zoom manually before retrying. Deleting or declining a Calendar invitation outside the management page does not
-trigger Zoom cleanup. Use the private website management link for coordinated cancellation.
+may require checking Calendar and Zoom manually before retrying. Declining a Calendar invitation leaves the booking and Zoom meeting scheduled.
+The notification watcher reports the guest's RSVP to the organizer without
+editing Calendar or Zoom. Use the private website management link for coordinated
+cancellation and Zoom cleanup.
 
 The website cannot confirm deployment, authorization, or live meeting creation
 merely from configuration flags. Complete the live test above before describing
@@ -118,3 +120,38 @@ Script Properties. Preserve it; replacing it invalidates outstanding links.
 Also run `node --test patrick-kruse-portfolio/manage-booking.test.cjs`.
 Tests use mocked Calendar, Zoom and email services. Live edit/cancel verification
 must follow the Apps Script redeployment; no live meetings were changed in tests.
+
+## RSVP and cancellation email notifications
+
+1. Replace the Apps Script project's entire `Code.gs` with the updated file.
+2. Update `appsscript.json` to the current version too. It adds
+   `https://www.googleapis.com/auth/script.scriptapp` for installing triggers.
+   Show the manifest through Project Settings if it is hidden.
+3. Save and run `installBookingResponseNotifications` once as the project owner.
+   Approve the requested Google access. This creates a Calendar change trigger
+   and a five-minute fallback timer; running it again does not duplicate them.
+4. Deploy a new version of the existing web app, preserving its URL, so new
+   bookings and website cancellations also record notification state.
+5. Verify with a test booking: respond Yes, then Maybe, then No. Each observed
+   change should email the organizer at `pekruse504@gmail.com` with the guest's
+   email, response, meeting date, time and format. The booking must remain in place.
+6. Cancel through the management link, then separately test deleting a booking
+   from the organizer's Calendar. Actual cancellations email guest and organizer.
+
+The watcher reads Calendar and sends email only. It never cancels a booking,
+changes an RSVP, or deletes a Zoom meeting. Calendar deletion outside the website
+also does not remove Zoom; use the management link for coordinated cancellation.
+Failed email deliveries stay queued for retry, with successful recipients recorded
+so normal retries do not resend their email. Delivery is not exactly-once if an
+execution stops after the provider accepts an email but before recording success.
+
+Existing upcoming website-managed bookings within 100 days are adopted when the
+watcher runs. An existing Yes/Maybe/No response may produce an initial status email.
+Calendar deletions can be identified only after booking details have been recorded;
+already-deleted historical events cannot be reconstructed. Completed bookings are
+retired seven days after their end if no emails remain queued. This does not scan
+unrelated calendar appointments. Rapid RSVP changes between checks may produce
+only the final observed response; trigger and email delivery times are not guaranteed.
+
+Run `node --test interview-booking/zoom.test.cjs` (60 tests, mocked services).
+No live Calendar actions or emails are performed by these tests.

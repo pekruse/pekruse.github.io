@@ -1,5 +1,73 @@
 const test=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),crypto=require('node:crypto');
 const source=fs.readFileSync(__dirname+'/Code.gs','utf8');
+const watchKey=id=>'BOOKING_WATCH_V1:'+id;
+
+for(const [response,label] of [['accepted','Yes'],['tentative','Maybe'],['declined','No']])test('Calendar '+response+' emails the organizer without cancelling anything',()=>{
+  const h=managed(),id=h.credentials.id,n=h.emails.length,initial=h.records.get(id),deletes=h.calls.filter(c=>c.opts.method==='delete').length;
+  initial.attendees[0].responseStatus=response;
+  h.ctx.Calendar.Events.patch=()=>{throw Error('Watcher must never edit Calendar');};
+  h.ctx.Calendar.Events.remove=()=>{throw Error('Watcher must never remove Calendar events');};
+  h.ctx.reconcileBookingResponses();
+  assert.equal(h.records.get(id),initial);assert.notEqual(initial.status,'cancelled');
+  assert.equal(h.calls.filter(c=>c.opts.method==='delete').length,deletes);
+  assert.equal(h.emails.length,n+1);assert.equal(h.emails.at(-1)[0],'pekruse504@gmail.com');
+  assert.match(h.emails.at(-1)[1],new RegExp(label));assert.match(h.emails.at(-1)[2],/guest@example.com/);
+  h.ctx.reconcileBookingResponses();assert.equal(h.emails.length,n+1);
+});
+test('changed response sends a new update while repeated unchanged responses do not',()=>{
+  const h=managed(),event=h.records.get(h.credentials.id),n=h.emails.length;
+  for(const status of ['accepted','accepted','tentative','declined']){
+    event.attendees[0].responseStatus=status;h.ctx.reconcileBookingResponses();
+  }
+  assert.equal(h.emails.length,n+3);assert.notEqual(event.status,'cancelled');
+});
+test('actual Calendar cancellation sends cancellation emails using retained booking details',()=>{
+  const h=managed(),id=h.credentials.id,n=h.emails.length,calls=h.calls.length;
+  h.records.set(id,{id,status:'cancelled'});h.ctx.reconcileBookingResponses();
+  assert.equal(h.emails.length,n+2);assert.match(h.emails.at(-1)[1],/cancelled/);
+  assert.match(h.emails.at(-1)[2],/Zoom/);assert.equal(h.calls.length,calls);
+  h.ctx.reconcileBookingResponses();assert.equal(h.emails.length,n+2);
+});
+test('transient Calendar errors do not generate false cancellation emails',()=>{
+  const h=managed(),n=h.emails.length;
+  h.ctx.Calendar.Events.get=()=>{throw Error('503 service unavailable');};
+  assert.throws(()=>h.ctx.reconcileBookingResponses(),/retry/);assert.equal(h.emails.length,n);
+});
+test('missing Calendar event generates an actual cancellation notification',()=>{
+  const h=managed(),n=h.emails.length;h.records.delete(h.credentials.id);
+  h.ctx.reconcileBookingResponses();assert.equal(h.emails.length,n+2);
+});
+test('response email failure is retried without losing the response change',()=>{
+  const h=managed(),send=h.ctx.MailApp.sendEmail,n=h.emails.length;
+  h.ctx.MailApp.sendEmail=()=>{throw Error('quota');};
+  h.records.get(h.credentials.id).attendees[0].responseStatus='accepted';
+  assert.throws(()=>h.ctx.reconcileBookingResponses(),/retry/);assert.equal(h.emails.length,n);
+  h.ctx.MailApp.sendEmail=send;h.ctx.reconcileBookingResponses();assert.equal(h.emails.length,n+1);
+  h.ctx.reconcileBookingResponses();assert.equal(h.emails.length,n+1);
+});
+test('website cancellation retries only the failed recipient and does not duplicate successful email',()=>{
+  const h=managed(),send=h.ctx.MailApp.sendEmail,n=h.emails.length;
+  h.ctx.MailApp.sendEmail=(...args)=>{if(args[0]==='pekruse504@gmail.com')throw Error('quota');send(...args);};
+  assert.match(h.call('cancel').warning,/email/);assert.equal(h.emails.length,n+1);
+  h.ctx.MailApp.sendEmail=send;h.ctx.reconcileBookingResponses();assert.equal(h.emails.length,n+2);
+  assert.equal(h.emails.at(-1)[0],'pekruse504@gmail.com');
+});
+test('existing managed bookings report current responses on installation and unrelated events are ignored',()=>{
+  const h=managed(),id=h.credentials.id,n=h.emails.length;
+  delete h.props[watchKey(id)];h.records.get(id).attendees[0].responseStatus='declined';
+  h.records.set('other',{id:'other',start:{dateTime:'2026-11-24T19:00:00Z'},end:{dateTime:'2026-11-24T19:30:00Z'},attendees:[{email:'guest@example.com',responseStatus:'accepted'}]});
+  h.ctx.reconcileBookingResponses();assert.equal(h.emails.length,n+1);
+  assert.notEqual(h.records.get(id).status,'cancelled');assert.equal(h.props[watchKey('other')],undefined);
+});
+test('installing notifications twice creates one Calendar trigger and one fallback timer',()=>{
+  const h=managed(),triggers=[],sources={CALENDAR:'calendar',CLOCK:'clock'};
+  h.ctx.ScriptApp={TriggerSource:sources,getProjectTriggers:()=>triggers,newTrigger:name=>{
+    let source;const builder={forUserCalendar:()=>{source=sources.CALENDAR;return builder;},onEventUpdated:()=>builder,
+      timeBased:()=>{source=sources.CLOCK;return builder;},everyMinutes:n=>{assert.equal(n,5);return builder;},
+      create:()=>triggers.push({getHandlerFunction:()=>name,getTriggerSource:()=>source})};return builder;
+  }};
+  h.ctx.installBookingResponseNotifications();h.ctx.installBookingResponseNotifications();assert.equal(triggers.length,2);
+});
 function setup(options={}){
   let now=Date.parse('2026-11-18T12:00:00Z'),uuid=0;
   const cache=new Map(),calls=[],events=[],emails=[],records=new Map();let revision=0,meetingId=123456789,zoomPatchCount=0;const zoomRecords=new Map();
@@ -8,7 +76,7 @@ function setup(options={}){
   const user=options.user||{id:'guest-id',email:'guest@example.com',display_name:'Guest'};
   const ctx={
     Date:class extends Date{constructor(...args){super(...(args.length?args:[now]));}static now(){return now;}},console:{log:()=>{},error:()=>{}},
-    PropertiesService:{getScriptProperties:()=>({getProperty:k=>props[k]||null,setProperties:values=>Object.assign(props,values)})},
+    PropertiesService:{getScriptProperties:()=>({getProperty:k=>props[k]||null,setProperties:values=>Object.assign(props,values),getProperties:()=>({...props}),deleteProperty:k=>delete props[k]})},
     CacheService:{getScriptCache:()=>({put:(k,v,ttl)=>cache.set(k,{v,until:now+ttl*1000}),get:k=>cache.has(k)&&cache.get(k).until>now?cache.get(k).v:null})},
     LockService:{getScriptLock:()=>({waitLock:()=>{},releaseLock:()=>{}})},
     Utilities:{DigestAlgorithm:{SHA_256:'sha256'},Charset:{UTF_8:'utf8'},
@@ -180,6 +248,7 @@ function managed(options={}){
   const call=(management,input={})=>h.ctx.manageBooking({...credentials,management,version:read().booking.version,...input});
   return {...h,receipt,credentials,read,call};
 }
+
 test('confirmation includes a website management link without a host token',()=>{
   const h=managed();assert.match(h.receipt.manageUrl,/manage-booking.html#id=/);
   assert.match(h.emails[0][2],/Manage booking/);assert.match(h.emails[0][3].htmlBody,/Manage booking/);
@@ -352,3 +421,4 @@ test('Zoom update uses Eastern local time during daylight saving time',()=>{
   const body=JSON.parse(h.calls.find(c=>c.opts.method==='patch').opts.payload);
   assert.equal(body.start_time,'2027-06-15T14:00:00');assert.equal(body.timezone,'America/New_York');assert.equal(body.duration,45);
 });
+

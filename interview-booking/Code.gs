@@ -289,7 +289,7 @@ function doGet(e) {
       for (const [start,end] of gaps) openings.push({date:day.date,start:840+start,end:840+end});
       const clock=m=>Math.floor((840+m)/60-12)+':'+String(m%60).padStart(2,'0');
       const label=Utilities.formatDate(new Date(day.start),ZONE,'EEE, MMM d');
-      rows+='<section><b>'+label+'</b><div class="track">'+gaps.map(([a,b])=>'<i style="left:'+a/1.8+'%;width:'+(b-a)/1.8+'%"></i>').join('')+'</div><small>'+ (gaps.length?gaps.map(([a,b])=>clock(a)+'–'+clock(b)+' PM').join(' · '):'No availability')+'</small></section>';
+      rows+='<section><b>'+label+'</b><div class="track">'+gaps.map(([a,b])=>'<i style="left:'+a/1.8+'%;width:'+(b-a)/1.8+'%"></i>').join('')+'</div><small>'+ (gaps.length?gaps.map(([a,b])=>clock(a)+'-'+clock(b)+' PM').join(' � '):'No availability')+'</small></section>';
     }
   } catch(err) { openings.length=0; rows='<p>Calendar availability could not be loaded. Refresh to retry.</p>'; }
   if (e && e.parameter.view === 'windows') return ContentService.createTextOutput('window.showInterviewWindows('+JSON.stringify({openings,week,additionalFormats:true,zoomOAuthAvailable:Boolean(zoomOAuthConfig()),zoomAvailable:Boolean(zoomConfiguration())})+');').setMimeType(ContentService.MimeType.JAVASCRIPT);
@@ -312,7 +312,7 @@ function doPost(e) {
     if (receipt.format === 'Phone call') message += row('Call details','Patrick will call the number you provided.');
     if (receipt.format === 'Microsoft Teams') message += row('Teams details',receipt.teams || 'A Microsoft Teams joining link will be emailed separately.');
     message += '</dl>';
-    if(receipt.manageUrl)message += '<p><a target="_top" href="'+esc(receipt.manageUrl)+'">Manage booking — edit or cancel</a></p>';
+    if(receipt.manageUrl)message += '<p><a target="_top" href="'+esc(receipt.manageUrl)+'">Manage booking - edit or cancel</a></p>';
     if (receipt.zoom) message += '<p><a target="_blank" rel="noopener" href="'+esc(receipt.zoom)+'">Join Zoom meeting</a></p>';
     else if (/^https:\/\/meet\.google\.com\//.test(receipt.meet)) message += '<p><a target="_blank" rel="noopener" href="'+esc(receipt.meet)+'">Join Google Meet</a></p>';
     else if (receipt.format==='Google Meet') message += '<p>Your calendar invitation will contain the Google Meet details.</p>';
@@ -398,15 +398,16 @@ function reserve(input) {
       if (zoomMeeting) removeBookingZoom(zoomMeeting);
       throw new Error('The calendar booking could not be confirmed. Please check your calendar before trying again.');
     }
+    bookingWatchRemember(booked);
     const subject = 'Interview confirmed: '+input.date+' at '+input.start+' Eastern';
     const details = [
       'Interview with Patrick Kruse',
       'Booked by: '+email,
       Utilities.formatDate(from,ZONE,'EEEE, MMMM d, yyyy'),
-      Utilities.formatDate(from,ZONE,'h:mm a')+' – '+Utilities.formatDate(to,ZONE,'h:mm a z')+' ('+(end-start)+' minutes)',
+      Utilities.formatDate(from,ZONE,'h:mm a')+' - '+Utilities.formatDate(to,ZONE,'h:mm a z')+' ('+(end-start)+' minutes)',
       phoneCall ? 'Phone call: Patrick will call '+phone : teamsCall ? 'Microsoft Teams: '+teamsDetails : physical ? 'In person: '+address : zoom ? 'Join Zoom meeting: '+zoom : 'Join Google Meet: '+(booked.hangoutLink || 'See the Calendar invitation for joining details.'),
       'View calendar event: '+booked.htmlLink,
-      'Manage booking — edit or cancel: '+manageUrl
+      'Manage booking - edit or cancel: '+manageUrl
     ].join('\n');
     const escapeEmail=value=>String(value||'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
     const meetingLink=zoom||(!physical&&!phoneCall&&!teamsCall?booked.hangoutLink:teams)||'';
@@ -414,13 +415,13 @@ function reserve(input) {
     const htmlBody='<div style="font:16px/1.6 Arial,sans-serif;max-width:560px">'
       +'<h2>Interview confirmed</h2>'
       +'<p><strong>Date:</strong> '+escapeEmail(Utilities.formatDate(from,ZONE,'EEEE, MMMM d, yyyy'))+'<br>'
-      +'<strong>Time:</strong> '+escapeEmail(Utilities.formatDate(from,ZONE,'h:mm a')+' – '+Utilities.formatDate(to,ZONE,'h:mm a z'))+'<br>'
+      +'<strong>Time:</strong> '+escapeEmail(Utilities.formatDate(from,ZONE,'h:mm a')+' - '+Utilities.formatDate(to,ZONE,'h:mm a z'))+'<br>'
       +'<strong>Meeting format:</strong> '+escapeEmail(input.format)+'<br>'
       +'<strong>Booked by:</strong> '+escapeEmail(email)+'</p>'
       +(meetingLink?'<p><a href="'+escapeEmail(meetingLink)+'" style="font-weight:bold">'+meetingLabel+'</a></p>':'')
       +(phoneCall?'<p>Patrick will call '+escapeEmail(phone)+'.</p>':physical?'<p><strong>Meeting address:</strong> '+escapeEmail(address)+'</p>':teamsCall&&!teams?'<p>'+escapeEmail(teamsDetails)+'</p>':'')
       +'<p><a href="'+escapeEmail(booked.htmlLink)+'">View calendar event</a></p>'
-      +'<p><a href="'+escapeEmail(manageUrl)+'">Manage booking — edit or cancel</a></p></div>';
+      +'<p><a href="'+escapeEmail(manageUrl)+'">Manage booking - edit or cancel</a></p></div>';
     for (const recipient of new Set([CALENDAR_ID.toLowerCase(),email.toLowerCase()])) {
       try {
         MailApp.sendEmail(recipient,subject,details,{htmlBody});
@@ -428,7 +429,7 @@ function reserve(input) {
         console.error('Confirmation email failed for event '+booked.id+' ('+(recipient===CALENDAR_ID.toLowerCase()?'organizer':'guest')+'): '+error.message);
       }
     }
-    return {manageUrl,date:Utilities.formatDate(from,ZONE,'EEEE, MMMM d, yyyy'),time:Utilities.formatDate(from,ZONE,'h:mm a')+' – '+Utilities.formatDate(to,ZONE,'h:mm a z')+' ('+(end-start)+' minutes)',email,zoom,phone,teams,format:input.format,address:physical?address:'',meet:booked.hangoutLink||''};
+    return {manageUrl,date:Utilities.formatDate(from,ZONE,'EEEE, MMMM d, yyyy'),time:Utilities.formatDate(from,ZONE,'h:mm a')+' - '+Utilities.formatDate(to,ZONE,'h:mm a z')+' ('+(end-start)+' minutes)',email,zoom,phone,teams,format:input.format,address:physical?address:'',meet:booked.hangoutLink||''};
   } finally { lock.releaseLock(); }
 }
 
@@ -506,26 +507,26 @@ function bookingClearOldZoom(event) {
   bookingDeleteZoom(p.bookingCleanup);
   return Calendar.Events.patch({extendedProperties:{private:{...p,bookingCleanup:''}}},CALENDAR_ID,event.id,{sendUpdates:'none'});
 }
-function bookingNotify(event,action) {
+function bookingNotify(event,action,recipients) {
   const p=event.extendedProperties.private,url=bookingManagementUrl(event.id);
   const esc=value=>String(value||'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const join=p.bookingJoin||(p.bookingFormat==='Google Meet'?event.hangoutLink:'');
   const cancelled=action==='cancelled',title=cancelled?'Interview cancelled':'Interview updated';
   const lines=[title,Utilities.formatDate(new Date(event.start.dateTime),ZONE,'EEEE, MMMM d, yyyy'),
-    Utilities.formatDate(new Date(event.start.dateTime),ZONE,'h:mm a')+' – '+Utilities.formatDate(new Date(event.end.dateTime),ZONE,'h:mm a z'),
-    'Meeting format: '+p.bookingFormat];
+    Utilities.formatDate(new Date(event.start.dateTime),ZONE,'h:mm a')+' - '+Utilities.formatDate(new Date(event.end.dateTime),ZONE,'h:mm a z'),
+    'Meeting format: '+p.bookingFormat,'Booked by: '+p.bookingEmail];
   if(!cancelled&&join)lines.push('Join '+p.bookingFormat+' meeting: '+join);
   if(!cancelled&&p.bookingFormat==='In person')lines.push('Meeting address: '+p.bookingAddress);
   if(!cancelled&&p.bookingFormat==='Phone call')lines.push('Patrick will call: '+p.bookingPhone);
   if(!cancelled&&p.bookingFormat==='Microsoft Teams'&&!p.bookingTeams)lines.push('The Teams link will be emailed separately.');
   if(!cancelled){lines.push('View calendar event: '+event.htmlLink,'Manage booking: '+url);}
-  const htmlBody='<div style="font:16px/1.6 Arial,sans-serif"><h2>'+title+'</h2><p>'+lines.slice(1,4).map(esc).join('<br>')+'</p>'
+  const htmlBody='<div style="font:16px/1.6 Arial,sans-serif"><h2>'+title+'</h2><p>'+lines.slice(1,5).map(esc).join('<br>')+'</p>'
     +(!cancelled&&join?'<p><a href="'+esc(join)+'">Join '+esc(p.bookingFormat)+' meeting</a></p>':'')
     +(!cancelled&&p.bookingFormat==='In person'?'<p>Meeting address: '+esc(p.bookingAddress)+'</p>':'')
     +(!cancelled&&p.bookingFormat==='Phone call'?'<p>Patrick will call: '+esc(p.bookingPhone)+'</p>':'')
-    +(!cancelled?'<p><a href="'+esc(event.htmlLink)+'">View calendar event</a></p><p><a href="'+esc(url)+'">Manage booking — edit or cancel</a></p>':'')+'</div>';
+    +(!cancelled?'<p><a href="'+esc(event.htmlLink)+'">View calendar event</a></p><p><a href="'+esc(url)+'">Manage booking - edit or cancel</a></p>':'')+'</div>';
   let warning='';
-  for(const recipient of new Set([CALENDAR_ID.toLowerCase(),p.bookingEmail.toLowerCase()])){
+  for(const recipient of new Set(recipients||[CALENDAR_ID.toLowerCase(),p.bookingEmail.toLowerCase()])){
     try{MailApp.sendEmail(recipient,title,lines.join('\n'),{htmlBody});}
     catch(_){warning='Your change was saved, but a confirmation email could not be sent. Check your calendar.';console.error('Booking management confirmation email failed.');}
   }
@@ -578,10 +579,11 @@ function manageBooking(input) {
       // Keep a durable retry marker if Zoom or Calendar is temporarily unavailable.
       const p=event.extendedProperties.private;
       if(p.bookingCancellationPending!=='1')event=Calendar.Events.patch({extendedProperties:{private:{...p,bookingCancellationPending:'1'}}},CALENDAR_ID,event.id,{sendUpdates:'none'});
+      bookingWatchRemember(event);
       for(const id of new Set([event.extendedProperties.private.zoomMeetingId,event.extendedProperties.private.bookingCleanup].filter(Boolean)))bookingDeleteZoom(id);
       try{Calendar.Events.remove(CALENDAR_ID,event.id,{sendUpdates:'all'});}
       catch(_){throw Error('Cancellation is not confirmed yet. Reload this page and retry cancellation.');}
-      const warning=bookingNotify(event,'cancelled');
+      const warning=bookingWatchFinishCancellation(event);
       return {booking:{status:'cancelled'},warning};
     }
     if(!snapshot.editable)throw Error('Cancellation is in progress. Reload and finish cancelling this booking.');
@@ -639,7 +641,129 @@ function manageBooking(input) {
     let warning='';
     try{saved=bookingClearOldZoom(saved);}
     catch(_){warning='Your new booking is saved, but the previous Zoom link could not be removed yet. Reload and save again to retry cleanup, or contact Patrick.';}
+    bookingWatchRemember(saved);
     const emailWarning=bookingNotify(saved,'updated');
     return {booking:bookingPublic(saved),warning:[warning,emailWarning].filter(Boolean).join(' ')};
   }finally{lock.releaseLock();}
+}
+
+
+
+// Snapshots retain the details Calendar omits from deleted-event tombstones.
+// Calendar reads and notification emails only: an RSVP never cancels a booking.
+const BOOKING_WATCH_PREFIX='BOOKING_WATCH_V1:';
+function bookingWatchRemember(event) {
+  const p=event.extendedProperties?.private;
+  if(p?.bookingManaged!=='1'||!p.bookingEmail||!event.start?.dateTime)return;
+  const props=PropertiesService.getScriptProperties(),key=BOOKING_WATCH_PREFIX+event.id;
+  const previous=JSON.parse(props.getProperty(key)||'{}');
+  if(previous.cancelled)return;
+  // No joining URLs, private management links or host credentials in snapshots.
+  const snapshot={id:event.id,start:event.start,end:event.end,extendedProperties:{private:{
+    bookingManaged:'1',bookingEmail:p.bookingEmail,bookingFormat:p.bookingFormat}}};
+  props.setProperties({[key]:JSON.stringify({...previous,event:snapshot,response:previous.response||'needsAction',queue:previous.queue||[]})});
+}
+function bookingWatchQueueCancellation(job,key) {
+  if(!job.cancelled){
+    job.cancelled=true;
+    job.queue.push({action:'cancelled',event:job.event,sent:[]});
+    PropertiesService.getScriptProperties().setProperties({[key]:JSON.stringify(job)});
+  }
+}
+function bookingWatchFinishCancellation(event) {
+  const props=PropertiesService.getScriptProperties(),key=BOOKING_WATCH_PREFIX+event.id;
+  bookingWatchRemember(event);
+  const job=JSON.parse(props.getProperty(key));
+  bookingWatchQueueCancellation(job,key);
+  return bookingWatchDeliver(job,key);
+}
+function bookingResponseNotify(event,response) {
+  const p=event.extendedProperties.private;
+  const label={accepted:'Yes (accepted)',tentative:'Maybe (tentative)',declined:'No (declined)',needsAction:'Awaiting response'}[response]||response;
+  const title='Interview response: '+label;
+  const lines=[title,'Responded by: '+p.bookingEmail,
+    'Date: '+Utilities.formatDate(new Date(event.start.dateTime),ZONE,'EEEE, MMMM d, yyyy'),
+    'Time: '+Utilities.formatDate(new Date(event.start.dateTime),ZONE,'h:mm a')+' - '+Utilities.formatDate(new Date(event.end.dateTime),ZONE,'h:mm a z'),
+    'Meeting format: '+p.bookingFormat,'The booking remains scheduled.'];
+  MailApp.sendEmail(CALENDAR_ID,title,lines.join('\n'));
+}
+function bookingWatchDeliver(job,key) {
+  const props=PropertiesService.getScriptProperties();
+  while(job.queue.length){
+    const item=job.queue[0],guest=item.event.extendedProperties.private.bookingEmail.toLowerCase();
+    const recipients=item.action==='cancelled'?[...new Set([CALENDAR_ID.toLowerCase(),guest])]:[CALENDAR_ID.toLowerCase()];
+    let warning='';
+    for(const recipient of recipients){
+      if(item.sent.includes(recipient))continue;
+      try {
+        if(item.action==='response')bookingResponseNotify(item.event,item.response);
+        else if(bookingNotify(item.event,'cancelled',[recipient]))throw Error('Email delivery failed.');
+        item.sent.push(recipient);
+        props.setProperties({[key]:JSON.stringify(job)});
+      }catch(_){warning='Your change was saved, but a notification email could not be sent. It will be retried automatically.';}
+    }
+    if(warning)return warning;
+    job.queue.shift();
+    props.setProperties({[key]:JSON.stringify(job)});
+  }
+  if(job.cancelled)props.deleteProperty(key);
+  return '';
+}
+function reconcileBookingResponses() {
+  const lock=LockService.getScriptLock();lock.waitLock(10000);
+  try {
+    const props=PropertiesService.getScriptProperties();
+    // Adopt upcoming website bookings, including bookings predating installation.
+    let pageToken;
+    do {
+      const page=Calendar.Events.list(CALENDAR_ID,{
+        timeMin:new Date().toISOString(),timeMax:new Date(Date.now()+100*86400000).toISOString(),
+        privateExtendedProperty:['bookingManaged=1'],showDeleted:false,maxResults:250,
+        ...(pageToken?{pageToken}:{})});
+      for(const event of page.items||[])bookingWatchRemember(event);
+      pageToken=page.nextPageToken;
+    }while(pageToken);
+    let failures=0;
+    for(const [key,raw] of Object.entries(props.getProperties())){
+      if(!key.startsWith(BOOKING_WATCH_PREFIX))continue;
+      try {
+        let job=JSON.parse(raw);
+        if(!job.cancelled){
+          let event;
+          try {event=Calendar.Events.get(CALENDAR_ID,job.event.id);}
+          catch(error){
+            if(!/404|410|not found|gone/i.test(String(error.message)))throw error;
+            event={id:job.event.id,status:'cancelled'};
+          }
+          if(event.status==='cancelled')bookingWatchQueueCancellation(job,key);
+          else {
+            if(event.extendedProperties?.private?.bookingManaged!=='1')continue;
+            bookingWatchRemember(event);job=JSON.parse(props.getProperty(key));
+            const guest=job.event.extendedProperties.private.bookingEmail.toLowerCase();
+            const attendee=(event.attendees||[]).find(a=>String(a.email||'').toLowerCase()===guest);
+            const response=attendee?.responseStatus||'needsAction';
+            if(response!==job.response){
+              job.response=response;
+              job.queue.push({action:'response',response,event:job.event,sent:[]});
+              props.setProperties({[key]:JSON.stringify(job)});
+            }
+          }
+        }
+        if(bookingWatchDeliver(job,key))failures++;
+        // Keep failed emails queued, but retire completed meetings after seven days.
+        else if(!job.cancelled&&Date.parse(job.event.end.dateTime)<Date.now()-7*86400000)props.deleteProperty(key);
+      }catch(error){failures++;console.error('Booking notification retry needed for '+key.slice(BOOKING_WATCH_PREFIX.length)+': '+String(error.message));}
+    }
+    if(failures)throw Error(failures+' booking notification(s) need another retry. Check execution logs.');
+  }finally{lock.releaseLock();}
+}
+// Run once as the project owner. Installs a Calendar change trigger and a
+// five-minute fallback; neither trigger edits Calendar nor deletes Zoom meetings.
+function installBookingResponseNotifications() {
+  const triggers=ScriptApp.getProjectTriggers().filter(t=>t.getHandlerFunction()==='reconcileBookingResponses');
+  if(!triggers.some(t=>t.getTriggerSource()===ScriptApp.TriggerSource.CALENDAR))
+    ScriptApp.newTrigger('reconcileBookingResponses').forUserCalendar(CALENDAR_ID).onEventUpdated().create();
+  if(!triggers.some(t=>t.getTriggerSource()===ScriptApp.TriggerSource.CLOCK))
+    ScriptApp.newTrigger('reconcileBookingResponses').timeBased().everyMinutes(5).create();
+  reconcileBookingResponses();
 }
