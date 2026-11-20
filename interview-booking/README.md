@@ -11,6 +11,7 @@ Use these non-admin granular scopes:
 
 - `user:read:user`
 - `meeting:write:meeting`
+- `meeting:update:meeting`
 - `meeting:delete:meeting`
 
 Set the exact OAuth redirect URL and allow-list entry to:
@@ -80,8 +81,10 @@ These tests mock external services; they do not create meetings or send invitati
 New confirmations include a clearly labeled **Manage booking — edit or cancel**
 link to `patrick-kruse-portfolio/manage-booking.html`. Deploy the latest single
 `Code.gs` file to the existing Apps Script deployment to enable the endpoints.
-There are no new manual Script Properties and no additional Zoom scopes beyond
-the existing create/delete scopes.
+There are no new manual Script Properties. Rescheduling an existing Zoom meeting
+also requires the user-managed scope `meeting:update:meeting`. Add it to the same
+General app, save the app, and run `authorizeZoomHost` again so the host grants the
+new permission. Keep the create and delete scopes.
 
 The URL fragment contains the event ID and an HMAC signature. Treat the full link
 as a private capability: anyone holding it can read, edit or cancel that booking.
@@ -92,8 +95,14 @@ Script Properties. Preserve it; replacing it invalidates outstanding links.
 - Guests may repick a future Tuesday/Thursday, time and meeting format, and edit
   the address, phone or Teams link. The invitation email stays unchanged.
 - Availability excludes the guest's own event and is checked again while saving.
-- A rescheduled Zoom booking gets a new meeting; the old Zoom meeting is removed.
-  This uses create/delete permissions and does not require a Zoom update scope.
+- Rescheduling a Zoom booking updates its existing meeting with PATCH. Its ID and
+  joining link remain the same. There is no create/delete fallback if updating fails.
+  The original meeting is deleted on cancellation or when changing away from Zoom;
+  changing from a different format to Zoom creates a new meeting.
+- Unchanged saves do not update Zoom, update Calendar or send another confirmation.
+- If Calendar rejects a reschedule after Zoom was updated, the backend attempts to
+  restore the original Zoom time. An unverifiable update or failed restoration is
+  reported as uncertain; no successful confirmation is sent.
 - Cancellation deletes the Zoom meeting first, then removes the calendar event
   with attendee notifications. Failure leaves a durable retry marker; the page
   never reports complete cancellation until both operations finish.

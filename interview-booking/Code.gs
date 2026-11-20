@@ -212,6 +212,34 @@ function createBookingZoom(from, duration) {
   return {id,join,token};
 }
 
+
+function updateBookingZoom(id,from,duration) {
+  if(!/^\d+$/.test(String(id)))throw Error('The existing Zoom meeting reference is invalid. Please contact Patrick.');
+  const token=zoomHostAccessToken();
+  let response;
+  try{
+    response=UrlFetchApp.fetch('https://api.zoom.us/v2/meetings/'+encodeURIComponent(id),{
+      method:'patch',contentType:'application/json',
+      headers:{Authorization:'Bearer '+token},
+      payload:JSON.stringify({start_time:Utilities.formatDate(from,ZONE,"yyyy-MM-dd'T'HH:mm:ss"),duration,timezone:ZONE}),
+      muteHttpExceptions:true
+    });
+  }catch(_){
+    const error=new Error('The Zoom update could not be verified. No replacement meeting was created.');
+    error.zoomUpdateUncertain=true;throw error;
+  }
+  const status=response.getResponseCode();
+  if(status===204)return;
+  let body={};try{body=JSON.parse(response.getContentText());}catch(_){}
+  const missingScope=Number(body.code)===4711||/scopes/i.test(String(body.message||''));
+  const hint=missingScope?'Patrick must add meeting:update:meeting to the General app and run authorizeZoomHost again.'
+    :status===401?'Patrick must reconnect the host Zoom account.'
+    :status===404?'The original meeting is no longer available. Please contact Patrick.'
+    :'Please try again later or contact Patrick.';
+  const error=new Error('Zoom could not update the existing meeting (HTTP '+status+'). '+hint+' No replacement meeting was created.');
+  error.zoomUpdateUncertain=status>=500;throw error;
+}
+
 function removeBookingZoom(meeting) {
   try {
     const response = UrlFetchApp.fetch('https://api.zoom.us/v2/meetings/'+encodeURIComponent(meeting.id), {
@@ -568,10 +596,26 @@ function manageBooking(input) {
     if(teams&&(teams.length>1000||!/^https:\/\/(?:teams\.microsoft\.com|teams\.live\.com|teams\.cloud\.microsoft)\/(?:l\/meetup-join\/|meet\/)[^\s<>"']+$/i.test(teams)))throw Error('Enter a valid Teams meeting link.');
     if(bookingBusy(from,to,event.id).some(([a,b])=>a<+to&&b>+from))throw Error('That time is no longer available. Choose another opening.');
     const p=event.extendedProperties.private,operation=zoomRandom();
-    const zoom=format==='Zoom'?createBookingZoom(from,(+to-+from)/60000):null;
+    const keepZoom=format==='Zoom'&&p.bookingFormat==='Zoom';
+    if(keepZoom&&(!/^\d+$/.test(p.zoomMeetingId||'')||!p.bookingJoin))
+      throw Error('The original Zoom meeting details are missing. Please contact Patrick; no replacement meeting was created.');
+    const previousFrom=new Date(event.start.dateTime),previousDuration=(Date.parse(event.end.dateTime)-previousFrom.getTime())/60000;
+    const zoomTimingChanged=keepZoom&&(from.getTime()!==previousFrom.getTime()||(+to-+from)/60000!==previousDuration);
+    if(zoomTimingChanged){
+      try{updateBookingZoom(p.zoomMeetingId,from,(+to-+from)/60000);}
+      catch(error){
+        if(error.zoomUpdateUncertain){
+          try{updateBookingZoom(p.zoomMeetingId,previousFrom,previousDuration);}
+          catch(_){throw Error('The Zoom update and restoration could not be verified. Please contact Patrick before retrying. No replacement meeting was created.');}
+        }
+        throw error;
+      }
+    }
+    const zoom=keepZoom?{id:p.zoomMeetingId,join:p.bookingJoin}
+      :format==='Zoom'?createBookingZoom(from,(+to-+from)/60000):null;
     const meta={...p,bookingFormat:format,bookingAddress:address,bookingPhone:phone,bookingTeams:teams,
       bookingJoin:zoom?zoom.join:format==='Microsoft Teams'?teams:'',
-      zoomMeetingId:zoom?zoom.id:'',bookingCleanup:p.zoomMeetingId||'',bookingOperation:operation};
+      zoomMeetingId:zoom?zoom.id:'',bookingCleanup:keepZoom?'':p.zoomMeetingId||'',bookingOperation:operation};
     const patch={start:{dateTime:from.toISOString()},end:{dateTime:to.toISOString()},
       extendedProperties:{private:meta},location:zoom?zoom.join:format==='In person'?address:format==='Phone call'?'Phone call':teams,
       description:zoom?'Join Zoom meeting: '+zoom.join:format==='Phone call'?'Patrick will call: '+phone:format==='Microsoft Teams'?'Microsoft Teams: '+(teams||'Link will be emailed separately.'):'',
@@ -584,7 +628,13 @@ function manageBooking(input) {
       try{checked=Calendar.Events.get(CALENDAR_ID,event.id);}
       catch(_){throw Error('The update could not be verified. Reload and check the booking before retrying.');}
       if(checked.extendedProperties?.private?.bookingOperation===operation)saved=checked;
-      else{if(zoom)removeBookingZoom(zoom);throw Error('The calendar update failed. Your previous booking is unchanged.');}
+      else{
+        if(keepZoom&&zoomTimingChanged){
+          try{updateBookingZoom(p.zoomMeetingId,previousFrom,previousDuration);}
+          catch(_){throw Error('The calendar update failed and the Zoom time could not be restored. Please contact Patrick before retrying.');}
+        }else if(zoom&&!keepZoom)removeBookingZoom(zoom);
+        throw Error('The calendar update failed. Your previous booking is unchanged.');
+      }
     }
     let warning='';
     try{saved=bookingClearOldZoom(saved);}

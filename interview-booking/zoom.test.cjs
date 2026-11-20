@@ -2,7 +2,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),vm=require(
 const source=fs.readFileSync(__dirname+'/Code.gs','utf8');
 function setup(options={}){
   let now=Date.parse('2026-11-18T12:00:00Z'),uuid=0;
-  const cache=new Map(),calls=[],events=[],emails=[],records=new Map();let revision=0,meetingId=123456789;
+  const cache=new Map(),calls=[],events=[],emails=[],records=new Map();let revision=0,meetingId=123456789,zoomPatchCount=0;const zoomRecords=new Map();
   const props={ZOOM_OAUTH_CLIENT_ID:'client',ZOOM_OAUTH_CLIENT_SECRET:'secret',ZOOM_HOST_USER_ID:'host@example.com',...options.props};
   const response=(status,body)=>({getResponseCode:()=>status,getContentText:()=>JSON.stringify(body)});
   const user=options.user||{id:'guest-id',email:'guest@example.com',display_name:'Guest'};
@@ -33,13 +33,25 @@ function setup(options={}){
       if(url.endsWith('/oauth/token'))return response(options.tokenFail?401:200,{access_token:'access-private',refresh_token:'refresh-private',expires_in:3600});
       if(url.endsWith('/users/me'))return response(200,user);
       if(opts.method==='delete')return response(options.deleteFail?403:204,{});
-      if(url.endsWith('/users/me/meetings'))return response(options.createFail?429:201,{id:++meetingId,...(options.zoomStartTime?{start_time:options.zoomStartTime}:{}),join_url:options.badJoin?'https://evil.example/meeting':'https://zoom.us/j/123456789',start_url:'host-start-private'});
+      if(url.endsWith('/users/me/meetings')){
+        const id=String(++meetingId),body={id,...(options.zoomStartTime?{start_time:options.zoomStartTime}:{}),join_url:options.badJoin?'https://evil.example/meeting':'https://zoom.us/j/'+id,start_url:'host-start-private'};
+        if(!options.createFail)zoomRecords.set(id,JSON.parse(opts.payload));
+        return response(options.createFail?429:201,body);
+      }
+      if(opts.method==='patch'&&url.includes('/meetings/')){
+        zoomPatchCount++;
+        if(options.zoomPatchStatus)return response(options.zoomPatchStatus,{code:options.zoomPatchStatus===400?4711:124,message:'Cannot update'});
+        if(options.rollbackFail&&zoomPatchCount>1)return response(500,{});
+        const id=url.split('/').at(-1);Object.assign(zoomRecords.get(id)||{},JSON.parse(opts.payload));
+        if(options.zoomTimeoutOnce&&zoomPatchCount===1)throw Error('network timeout');
+        return response(204,{});
+      }
       throw Error('Unexpected fetch '+url);
     }},
     Calendar:{Freebusy:{query:()=>({calendars:{'pekruse504@gmail.com':{busy:options.busy?[{}]:[]}}})},Events:{
       insert:e=>{if(options.calendarFail)throw Error('calendar failure');events.push(e);const saved={...e,id:e.id||'event',etag:'v'+(++revision),htmlLink:'https://calendar.google.com/event',hangoutLink:e.conferenceData?'https://meet.google.com/abc':''};records.set(saved.id,saved);return structuredClone(saved);},
       get:(cal,id)=>{if(!records.has(id))throw Error('404 not found');return structuredClone(records.get(id));},
-      patch:(patch,cal,id)=>{if(options.patchFail)throw Error('patch failed');const previous=records.get(id);const saved={...previous,...structuredClone(patch),etag:'v'+(++revision)};if(patch.conferenceData===null)saved.hangoutLink='';else if(patch.conferenceData)saved.hangoutLink='https://meet.google.com/new';records.set(id,saved);return structuredClone(saved);},
+      patch:(patch,cal,id)=>{if(options.patchFail)throw Error('patch failed');const previous=records.get(id);const saved={...previous,...structuredClone(patch),etag:'v'+(++revision)};if(patch.conferenceData===null)saved.hangoutLink='';else if(patch.conferenceData)saved.hangoutLink='https://meet.google.com/new';records.set(id,saved);if(options.calendarAppliedTimeout&&patch.extendedProperties?.private?.bookingOperation)throw Error('calendar response lost');return structuredClone(saved);},
       remove:(cal,id)=>{if(options.removeFail)throw Error('remove failed');records.set(id,{id,status:'cancelled'});},
       list:(cal,query)=>({items:[...records.values(),...(options.conflicts||[])].filter(e=>e.status!=='cancelled'&&Date.parse(e.start.dateTime)<Date.parse(query.timeMax)&&Date.parse(e.end.dateTime)>Date.parse(query.timeMin))})
     }},
@@ -56,7 +68,7 @@ function setup(options={}){
   };
   const host=()=>ctx.zoomStoreHost({access_token:'host-access',refresh_token:'host-refresh',expires_in:3600},{id:'host-id',email:'host@example.com',name:'Host'});
   const book=(format='Zoom',extra={})=>ctx.reserve({format,date:'2026-11-24',start:'14:00',end:'14:30',token:'google-token',address:'Office',...extra});
-  return{ctx,cache,calls,events,emails,props,records,verifier,challenge,login,host,book,advance:ms=>now+=ms};
+  return{ctx,cache,calls,events,emails,props,records,zoomRecords,verifier,challenge,login,host,book,advance:ms=>now+=ms};
 }
 test('visitor sign-in verifies identity and issues only a browser-bound session',()=>{
   const h=setup(),{status}=h.login();assert.equal(status.status,'complete');assert.equal(status.email,'guest@example.com');
@@ -184,12 +196,19 @@ test('read and openings are read-only, and own reservation remains available',()
   const data=h.call('windows',{date:'2026-11-24'});assert.equal(data.openings[0].start,'14:00');assert.equal(data.openings[0].end,'17:00');
   assert.equal(h.calls.length,before);assert.equal(h.records.size,1);
 });
-test('reschedule creates a new Zoom link, updates the same event and deletes the old meeting',()=>{
-  const h=managed(),oldId=h.records.get(h.credentials.id).extendedProperties.private.zoomMeetingId;
+test('reschedule updates the existing Zoom meeting, preserves its link and sends one update',()=>{
+  const h=managed(),before=h.read().booking,oldId=h.records.get(h.credentials.id).extendedProperties.private.zoomMeetingId;
+  const creates=h.calls.filter(c=>c.url.endsWith('/users/me/meetings')).length,emails=h.emails.length;
   const updated=h.call('save',{date:'2026-11-26',start:'15:00',end:'15:45',format:'Zoom'});
   assert.equal(updated.booking.date,'2026-11-26');assert.equal(updated.booking.start,'15:00');
-  assert.equal(h.events.length,1);assert.ok(h.calls.some(c=>c.opts.method==='delete'&&c.url.endsWith('/'+oldId)));
-  assert.match(h.emails.at(-1)[1],/updated/);assert.equal(h.records.get(h.credentials.id).extendedProperties.private.bookingCleanup,'');
+  assert.equal(updated.booking.join,before.join);assert.equal(h.events.length,1);
+  assert.equal(h.records.get(h.credentials.id).extendedProperties.private.zoomMeetingId,oldId);
+  assert.equal(h.calls.filter(c=>c.url.endsWith('/users/me/meetings')).length,creates);
+  assert.ok(!h.calls.some(c=>c.opts.method==='delete'));
+  const update=h.calls.find(c=>c.opts.method==='patch'&&c.url.endsWith('/'+oldId));
+  assert.equal(JSON.parse(update.opts.payload).start_time,'2026-11-26T15:00:00');
+  assert.equal(JSON.parse(update.opts.payload).duration,45);
+  assert.equal(h.emails.length,emails+2);assert.match(h.emails.at(-1)[1],/updated/);
 });
 test('stale form cannot overwrite a successful edit',()=>{
   const h=managed(),version=h.read().booking.version;
@@ -221,10 +240,15 @@ test('edit can change format and validates required details',()=>{
   const data=h.call('save',{date:'2026-11-26',start:'15:00',end:'15:30',format:'Phone call',phone:'+1 555 123 4567'});
   assert.equal(data.booking.format,'Phone call');assert.equal(data.booking.phone,'+1 555 123 4567');assert.equal(data.booking.join,'');
 });
-test('calendar update failure cleans up new Zoom and preserves the original event',()=>{
+test('calendar update failure restores the original Zoom time without deleting it',()=>{
   const h=managed({patchFail:true}),before=h.read().booking;
   assert.throws(()=>h.call('save',{date:'2026-11-26',start:'15:00',end:'15:30',format:'Zoom'}),/previous booking is unchanged/);
-  assert.equal(h.read().booking.date,before.date);assert.ok(h.calls.some(c=>c.opts.method==='delete'));
+  assert.equal(h.read().booking.date,before.date);assert.ok(!h.calls.some(c=>c.opts.method==='delete'));
+  const updates=h.calls.filter(c=>c.opts.method==='patch');assert.equal(updates.length,2);
+  assert.equal(JSON.parse(updates[0].opts.payload).start_time,'2026-11-26T15:00:00');
+  assert.equal(JSON.parse(updates[1].opts.payload).start_time,'2026-11-24T14:00:00');
+  const id=h.records.get(h.credentials.id).extendedProperties.private.zoomMeetingId;
+  assert.equal(h.zoomRecords.get(id).start_time,'2026-11-24T14:00:00');
 });
 test('management rejects past dates, Wednesdays and invalid time ranges',()=>{
   const h=managed();
@@ -257,9 +281,9 @@ test('irrelevant fields and whitespace do not produce duplicate updates',()=>{
   assert.equal(h.call('save',{...updated.booking,address:'  Main Library  '}).unchanged,true);
   assert.equal(h.emails.length,emails);assert.ok(emails>count);
 });
-test('cleanup retry on unchanged booking never recreates a meeting or emails again',()=>{
+test('cleanup retry after switching away from Zoom never recreates a meeting or emails again',()=>{
   const h=managed({deleteFail:true});
-  const updated=h.call('save',{date:'2026-11-26',start:'15:00',end:'15:30',format:'Zoom'});
+  const updated=h.call('save',{date:'2026-11-26',start:'15:00',end:'15:30',format:'Google Meet'});
   assert.equal(updated.booking.cleanupPending,true);
   const count=h.emails.length,creates=h.calls.filter(c=>c.url.endsWith('/users/me/meetings')).length;
   const retry=h.call('save',updated.booking);
@@ -283,4 +307,48 @@ test('a mismatched Zoom scheduled time is cleaned up and never confirmed',()=>{
   const h=setup({zoomStartTime:'2026-11-25T00:00:00Z'});h.host();const {status}=h.login();
   assert.throws(()=>h.book('Zoom',{zoomSession:status.session,zoomVerifier:h.verifier}),/different meeting time/);
   assert.equal(h.events.length,0);assert.equal(h.emails.length,0);assert.ok(h.calls.some(c=>c.opts.method==='delete'));
+});
+
+test('missing Zoom update permission never falls back to creating or deleting a meeting',()=>{
+  const h=managed({zoomPatchStatus:400}),before=h.read().booking,count=h.calls.length,emails=h.emails.length;
+  assert.throws(()=>h.call('save',{date:'2026-11-26',start:'15:00',end:'15:30',format:'Zoom'}),/meeting:update:meeting/);
+  const calls=h.calls.slice(count);assert.ok(!calls.some(c=>c.opts.method==='post'||c.opts.method==='delete'));
+  assert.equal(h.emails.length,emails);assert.equal(h.read().booking.version,before.version);
+});
+test('missing original Zoom meeting never causes a silent replacement',()=>{
+  const h=managed({zoomPatchStatus:404}),count=h.calls.length;
+  assert.throws(()=>h.call('save',{date:'2026-11-26',start:'15:00',end:'15:30',format:'Zoom'}),/no longer available/);
+  assert.ok(!h.calls.slice(count).some(c=>c.url.endsWith('/users/me/meetings')));
+});
+test('lost Zoom update response restores original time and never sends confirmation',()=>{
+  const h=managed({zoomTimeoutOnce:true}),emails=h.emails.length;
+  assert.throws(()=>h.call('save',{date:'2026-11-26',start:'15:00',end:'15:30',format:'Zoom'}),/could not be verified/);
+  const id=h.records.get(h.credentials.id).extendedProperties.private.zoomMeetingId;
+  assert.equal(h.zoomRecords.get(id).start_time,'2026-11-24T14:00:00');
+  assert.equal(h.emails.length,emails);assert.ok(!h.calls.some(c=>c.opts.method==='delete'));
+});
+test('failed rollback is reported honestly and never confirms the edit',()=>{
+  const h=managed({patchFail:true,rollbackFail:true}),emails=h.emails.length;
+  assert.throws(()=>h.call('save',{date:'2026-11-26',start:'15:00',end:'15:30',format:'Zoom'}),/could not be restored/);
+  assert.equal(h.emails.length,emails);assert.ok(!h.calls.some(c=>c.opts.method==='delete'));
+});
+test('lost Calendar patch response is verified without rolling back successful Zoom update',()=>{
+  const h=managed({calendarAppliedTimeout:true});
+  const result=h.call('save',{date:'2026-11-26',start:'15:00',end:'15:30',format:'Zoom'});
+  assert.equal(result.booking.date,'2026-11-26');
+  assert.equal(h.calls.filter(c=>c.opts.method==='patch').length,1);
+  assert.ok(!h.calls.some(c=>c.opts.method==='delete'));
+});
+test('switching formats deletes obsolete Zoom once and switching back creates one new Zoom',()=>{
+  const h=managed(),before=h.read().booking;
+  h.call('save',{date:'2026-11-26',start:'15:00',end:'15:30',format:'Phone call',phone:'+1 555 123 4567'});
+  assert.equal(h.calls.filter(c=>c.opts.method==='delete').length,1);
+  const result=h.call('save',{date:'2026-11-26',start:'15:00',end:'15:30',format:'Zoom'});
+  assert.notEqual(result.booking.join,before.join);assert.equal(h.calls.filter(c=>c.opts.method==='delete').length,1);
+  assert.equal(h.calls.filter(c=>c.url.endsWith('/users/me/meetings')).length,2);
+});
+test('Zoom update uses Eastern local time during daylight saving time',()=>{
+  const h=setup();h.host();h.ctx.updateBookingZoom('123456789',new Date('2027-06-15T18:00:00Z'),45);
+  const body=JSON.parse(h.calls.find(c=>c.opts.method==='patch').opts.payload);
+  assert.equal(body.start_time,'2027-06-15T14:00:00');assert.equal(body.timezone,'America/New_York');assert.equal(body.duration,45);
 });
